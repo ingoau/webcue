@@ -89,6 +89,17 @@ export async function sendNetwork(url: string, payload = "", method = "POST") {
   }
 }
 
+export async function startLtc(fps = 30, startSeconds = 0, level = 0.8, sinkId = "") {
+  const audio = new AudioContext({ latencyHint: "interactive" });
+  if (sinkId && "setSinkId" in audio) await (audio as any).setSinkId(sinkId);
+  const source = `class LTC extends AudioWorkletProcessor{constructor(o){super();let p=o.processorOptions;this.fps=p.fps;this.start=p.start;this.sample=0;this.half=-1;this.level=1;this.bits=[]}frame(n){let t=this.start+n/this.fps,f=Math.floor(t*this.fps)%Math.round(this.fps),s=Math.floor(t)%60,m=Math.floor(t/60)%60,h=Math.floor(t/3600)%24,b=Array(80).fill(0),put=(i,v,l)=>{for(let x=0;x<l;x++)b[i+x]=v>>x&1};put(0,f%10,4);put(8,Math.floor(f/10),2);put(16,s%10,4);put(24,Math.floor(s/10),3);put(32,m%10,4);put(40,Math.floor(m/10),3);put(48,h%10,4);put(56,Math.floor(h/10),2);[0,0,1,1,1,1,1,1,1,1,1,1,1,1,0,1].forEach((v,i)=>b[64+i]=v);return b}process(i,o){let a=o[0][0],sph=sampleRate/(this.fps*160);for(let x=0;x<a.length;x++,this.sample++){let q=Math.floor(this.sample/sph),half=q%2,bit=Math.floor(q/2)%80,frame=Math.floor(q/160);if(half!==this.half){if(!half||this.bits[bit])this.level*=-1;this.half=half;if(!half&&bit===0)this.bits=this.frame(frame)}a[x]=this.level*.7}return true}}registerProcessor("stagecue-ltc",LTC);`;
+  const url = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+  try { await audio.audioWorklet.addModule(url); } finally { URL.revokeObjectURL(url); }
+  const node = new AudioWorkletNode(audio, "stagecue-ltc", { outputChannelCount: [1], processorOptions: { fps, start: startSeconds } }), gain = audio.createGain();
+  gain.gain.value = level; node.connect(gain).connect(audio.destination);
+  return { audio, gain, node };
+}
+
 const variable = (data: Uint8Array, offset: number) => {
   let value = 0, length = 0, byte;
   do { byte = data[offset + length++]; value = (value << 7) | (byte & 127); } while (byte & 128);

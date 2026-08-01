@@ -20,8 +20,8 @@ test("server-renders the complete StageCue workspace", async () => {
 
 test("device cues use real browser APIs", async () => {
   const [page, runtime] = await Promise.all([readFile(new URL("../app/page.tsx", import.meta.url), "utf8"), readFile(new URL("../app/runtime.ts", import.meta.url), "utf8")]);
-  for (const api of ["getUserMedia", "getDisplayMedia", "requestMIDIAccess", "requestPort", "WebSocket", "BroadcastChannel", "showOpenFilePicker", "showSaveFilePicker", "wakeLock"]) assert.match(`${page}\n${runtime}`, new RegExp(api));
+  for (const api of ["getUserMedia", "getDisplayMedia", "requestMIDIAccess", "requestPort", "AudioWorkletNode", "WebSocket", "BroadcastChannel", "showOpenFilePicker", "showSaveFilePicker", "wakeLock"]) assert.match(`${page}\n${runtime}`, new RegExp(api));
   assert.doesNotMatch(page, /onClick=\{\(\) => \{\}\}/);
-  for (const behavior of ["MIDI Timecode", "timecodeTrigger", "secondTriggerOnRelease", "fadeOpacity", "Import Settings", "Export Settings", "Permission granted", "Open stage output", "beforeunload", "active-cue"]) assert.match(page, new RegExp(behavior));
+  for (const behavior of ["MIDI Timecode", "Linear Timecode", "timecodeTrigger", "secondTriggerOnRelease", "fadeOpacity", "Import Settings", "Export Settings", "Permission granted", "Open stage output", "beforeunload", "active-cue"]) assert.match(page, new RegExp(behavior));
   assert.doesNotMatch(page, /coming soon|not implemented|href=["']#["']/i);
 });
