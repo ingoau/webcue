@@ -31,10 +31,17 @@ test("device cues use real browser APIs", async () => {
 
 test("cue editing and output controls are functional", async () => {
   const [page, runtime, css] = await Promise.all(["page.tsx", "runtime.ts", "globals.css"].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
-  for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "Select Found", "inspector-resizer", "inspector-hidden", "contenteditable='true'", "--nest-width"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
+  for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "requestFullscreen", "Select Found", "inspector-resizer", "inspector-hidden", "contenteditable='true'", "--nest-width"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
   assert.match(css, /\.inspector,\.inspector-resizer\s*\{[^}]*grid-column:1/);
   for (const behavior of ["analyzeAudio", "ChannelSplitter", "ChannelMerger", "setSinkId"]) assert.match(runtime, new RegExp(behavior));
   assert.doesNotMatch(page, /\{stage && <Stage/);
+});
+
+test("cue failures, visual fades, selection, and arm controls follow show-control behavior", async () => {
+  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  for (const behavior of ["runtimeWarnings", "warningByCue", "fadeValues: { volume: 0, opacity: 0 }", "setPlayhead(primary)", "Power", "Full Screen", "Exit Full Screen"]) assert.ok(page.includes(behavior), `${behavior} is wired`);
+  assert.doesNotMatch(page, /help \|\| notice/);
+  assert.match(page, /\["Audio", "Video", "Mic", "Camera", "Text", "Timecode"\]/);
 });
 
 test("nested groups own, hide, and sequence their children", () => {
