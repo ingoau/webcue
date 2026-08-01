@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { childrenOf, descendantsOf, dropFrameSeconds, dropFrameText, migrateGroups, nextSibling, visibleCues } from "../app/model.mjs";
+import { cueTargetPatch, curveValue, dmxFrame, interpolateCue, midiMessage, parseLightCommand, sanitizeRichText, setPath, timelineLength } from "../app/features.mjs";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -31,4 +33,56 @@ test("cue editing and output controls are functional", async () => {
   for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "Select Found"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
   for (const behavior of ["analyzeAudio", "ChannelSplitter", "ChannelMerger", "setSinkId"]) assert.match(runtime, new RegExp(behavior));
   assert.doesNotMatch(page, /\{stage && <Stage/);
+});
+
+test("nested groups own, hide, and sequence their children", () => {
+  const cues = [{ id: "g", type: "Group", number: "1", target: "2,3", collapsed: false, parentId: "" }, { id: "a", number: "2", parentId: "" }, { id: "n", type: "Group", number: "3", parentId: "" }, { id: "b", number: "4", parentId: "n" }, { id: "z", number: "5", parentId: "" }];
+  const migrated = migrateGroups(cues);
+  assert.deepEqual(childrenOf(migrated, "g").map((cue) => cue.id), ["a", "n"]);
+  assert.deepEqual(descendantsOf(migrated, "g").map((cue) => cue.id), ["a", "n", "b"]);
+  assert.equal(nextSibling(migrated, migrated[0]).id, "z");
+  assert.deepEqual(visibleCues(migrated).map((cue) => cue.id), ["g", "a", "n", "b", "z"]);
+  migrated[0].collapsed = true;
+  assert.deepEqual(visibleCues(migrated).map((cue) => cue.id), ["g", "z"]);
+});
+
+test("29.97 timecode uses drop-frame numbering", () => {
+  assert.equal(dropFrameText(600, 29.97), "00:10:00:00");
+  assert.ok(Math.abs(dropFrameSeconds("00:10:00:00", 29.97) - 600) < .01);
+});
+
+test("advanced cue automation interpolates every selected parameter", () => {
+  assert.deepEqual(interpolateCue({ volume: 80, opacity: 20, x: 0 }, { volume: 20, opacity: 100, x: 200 }, .5), { volume: 50, opacity: 60, x: 100 });
+  assert.deepEqual(interpolateCue({ x: 10 }, { x: 20 }, .5, true), { x: 20 });
+  assert.equal(curveValue("ease-in", .5), .25);
+  assert.equal(curveValue("ease-out", .5), .75);
+});
+
+test("structured MIDI covers channel, system, SysEx and MSC messages", () => {
+  assert.deepEqual(midiMessage({ midiCommand: "Note On", midiChannel: 2, midiData1: 60, midiData2: 100 }), [145, 60, 100]);
+  assert.deepEqual(midiMessage({ midiCommand: "Song Position", midiData1: 1, midiData2: 2 }), [242, 1, 2]);
+  assert.deepEqual(midiMessage({ midiCommand: "SysEx", target: "240,1,2,247" }), [240, 1, 2, 247]);
+  assert.equal(midiMessage({ midiCommand: "MSC Go", midiDeviceId: 127, midiFormat: 16, midiCueNumber: "2" })[4], 1);
+});
+
+test("fixture commands generate bounded DMX frames", () => {
+  const fixtures = [{ id: "front", name: "Front Wash", universe: 2, address: 10, channels: { intensity: 1, red: 2 } }];
+  const levels = { ...parseLightCommand("Front Wash @ Full", fixtures), front: { intensity: 100, red: 50 } }, frames = dmxFrame(fixtures, levels);
+  assert.equal(frames[2][9], 255);
+  assert.equal(frames[2][10], 127);
+  assert.equal(frames[2].length, 512);
+});
+
+test("target cues patch nested properties and rich text is sanitized", () => {
+  const change = cueTargetPatch('12=videoEffects.0.value:150');
+  assert.deepEqual(change, { number: "12", path: "videoEffects.0.value", value: 150 });
+  assert.equal(setPath({ videoEffects: [{ value: 100 }] }, change.path, change.value).videoEffects[0].value, 150);
+  assert.doesNotMatch(sanitizeRichText('<b onclick="bad()">Safe</b><script>bad()</script>'), /onclick|script/i);
+  assert.equal(timelineLength([{ pre: 1, duration: 3, post: 1 }, { pre: 2, duration: 6, post: 0 }]), 8);
+});
+
+test("all requested browser-native production surfaces are wired", async () => {
+  const [page, runtime, worker] = await Promise.all(["page.tsx", "runtime.ts", "../worker/index.ts"].map((file) => readFile(new URL(file.startsWith("..") ? file : `../app/${file}`, import.meta.url), "utf8")));
+  for (const feature of ["FadeEditor", "TimelineEditor", "EffectsEditor", "RichTextEditor", "FixtureManager", "PatchManager", "StageManager", "PropertyPaste", "CueSelector", "OperationsPanel", "workspaceTemplates", "relinkMissingMedia", "collectMedia", "getScreenDetails", "collaborationSocket", "duckOthers", "preservePitch", "SMPTE-timed"]) assert.match(`${page}\n${runtime}`, new RegExp(feature));
+  for (const api of ["webgl2", "createMediaElementSource", "preservesPitch", "WebSocketPair"]) assert.match(`${runtime}\n${worker}`, new RegExp(api));
 });

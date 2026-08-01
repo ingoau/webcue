@@ -1,100 +1,30 @@
-# vinext-starter
+# StageCue
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+StageCue is a Chromium-native show-control workspace modeled on QLab.
 
-## Prerequisites
+## Run
 
-- Node.js `>=22.13.0`
-
-## Quick Start
+Requires Node.js 22.13 or newer.
 
 ```bash
 npm install
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+Use `npm test` for the production build and behavioral checks, and `npm run lint` for source validation.
 
-## Included Shape
+## Implemented
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+- Nested cue lists, groups and carts with GO, preview, playhead, active cues, auto-continue/follow, bulk editing, search, inline rename, drag placement, context menus, Show mode and keyboard control
+- Audio waveforms, trims, slices, preserve-pitch playback, mute/solo/gangs, named inputs, patchable routing, main/output trims and reorderable Web Audio effect chains
+- Trimmed and sliced video with hold, loops and fades; rich text; layered multi-stage output; 3D geometry, crop, anchors, masks, blending and GPU effects
+- Real microphone, camera and screen capture; Web MIDI, SysEx, MIDI Show Control, MIDI files, MTC and generated LTC; Web Serial lighting bridges; HTTP and WebSocket network cues
+- Multi-parameter fades, editable group timelines and looping/crossfading playlists; captured recurring triggers, ducking and related-cue actions
+- Fixture-based lighting, per-cue MIDI/timecode patches, SMPTE MIDI files and broad MIDI/MSC/system-message editing
+- Workspace warnings, operational windows, media collection/relinking, settings/templates, JSON import/export, IndexedDB media, same-origin and WebSocket collaboration, display placement and Wake Lock
 
-## Workspace Auth Headers
+See [outputs/README.md](outputs/README.md) for the complete feature and browser-limit notes.
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
+## Browser limits
 
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+Chromium cannot expose native Core Audio patching or Audio Units, arbitrary local processes and AppleScript, desktop blackout, raw UDP/TCP such as Art-Net or OSC, or serverless remote-machine collaboration. StageCue omits those controls instead of presenting inactive UI. Hardware APIs request browser permission when used.

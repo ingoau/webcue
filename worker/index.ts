@@ -19,6 +19,8 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
+const rooms = new Map<string, Set<WebSocket>>();
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -28,6 +30,15 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/collaboration" && request.headers.get("Upgrade") === "websocket") {
+      const pair = new WebSocketPair(), client = pair[0], server = pair[1], room = url.searchParams.get("room") || "default", peers = rooms.get(room) || new Set<WebSocket>();
+      rooms.set(room, peers); server.accept(); peers.add(server);
+      server.addEventListener("message", (event) => peers.forEach((peer) => { if (peer !== server && peer.readyState === 1) peer.send(event.data); }));
+      const close = () => { peers.delete(server); if (!peers.size) rooms.delete(room); };
+      server.addEventListener("close", close); server.addEventListener("error", close);
+      return new Response(null, { status: 101, webSocket: client } as ResponseInit & { webSocket: WebSocket });
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
