@@ -32,6 +32,7 @@ test("device cues use real browser APIs", async () => {
 test("cue editing and output controls are functional", async () => {
   const [page, runtime, css] = await Promise.all(["page.tsx", "runtime.ts", "globals.css"].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
   for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "Select Found", "inspector-resizer", "inspector-hidden", "contenteditable='true'", "--nest-width"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
+  assert.match(css, /\.inspector,\.inspector-resizer\s*\{[^}]*grid-column:1/);
   for (const behavior of ["analyzeAudio", "ChannelSplitter", "ChannelMerger", "setSinkId"]) assert.match(runtime, new RegExp(behavior));
   assert.doesNotMatch(page, /\{stage && <Stage/);
 });

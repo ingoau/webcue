@@ -15,7 +15,7 @@ button { border:0; }
 .masthead { grid-row:2; }
 .toolbox { grid-row:3; }
 .work-area { grid-row:4; }
-.inspector { grid-row:5; }
+.inspector,.inspector-resizer { grid-row:5; grid-column:1; }
 footer { grid-row:6; }
 
 .menu-bar { display:flex; align-items:center; padding:0 8px; background:#171717; border-bottom:1px solid #555; z-index:20; }
