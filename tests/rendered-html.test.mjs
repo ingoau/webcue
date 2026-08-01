@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { childrenOf, descendantsOf, dropFrameSeconds, dropFrameText, migrateGroups, nextSibling, visibleCues } from "../app/model.mjs";
+import { childrenOf, depthOf, descendantsOf, dropFrameSeconds, dropFrameText, migrateGroups, nextSibling, visibleCues } from "../app/model.mjs";
 import { cueTargetPatch, curveValue, dmxFrame, interpolateCue, midiMessage, parseLightCommand, sanitizeRichText, setPath, timelineLength } from "../app/features.mjs";
 
 async function render() {
@@ -17,6 +17,7 @@ test("server-renders the complete StageCue workspace", async () => {
   const html = await response.text();
   assert.match(html, /<title>StageCue - Browser Show Control<\/title>/);
   for (const text of ["StageCue", "Main Cue List", "Workspace settings", "New Camera cue", "New MIDI cue", "New Timecode cue", "Open stage output", "Show"]) assert.match(html, new RegExp(text));
+  assert.match(html.replaceAll("<!-- -->", ""), /0 cues in 2 lists and carts/);
   assert.doesNotMatch(html, /coming soon|not implemented|placeholder cue/i);
 });
 
@@ -30,7 +31,7 @@ test("device cues use real browser APIs", async () => {
 
 test("cue editing and output controls are functional", async () => {
   const [page, runtime, css] = await Promise.all(["page.tsx", "runtime.ts", "globals.css"].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
-  for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "Select Found"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
+  for (const behavior of ["selectedIds", "inline-name", "drop-before", "cue-type-sidebar", "audioRoutes", "AudioEditor", "AudioRouting", "about:blank", "Open stage output", "Select Found", "inspector-resizer", "inspector-hidden", "contenteditable='true'", "--nest-width"]) assert.match(`${page}\n${css}`, new RegExp(behavior));
   for (const behavior of ["analyzeAudio", "ChannelSplitter", "ChannelMerger", "setSinkId"]) assert.match(runtime, new RegExp(behavior));
   assert.doesNotMatch(page, /\{stage && <Stage/);
 });
@@ -44,6 +45,15 @@ test("nested groups own, hide, and sequence their children", () => {
   assert.deepEqual(visibleCues(migrated).map((cue) => cue.id), ["g", "a", "n", "b", "z"]);
   migrated[0].collapsed = true;
   assert.deepEqual(visibleCues(migrated).map((cue) => cue.id), ["g", "z"]);
+});
+
+test("deep and malformed group trees stay bounded", () => {
+  const cues = Array.from({ length: 250 }, (_, index) => ({ id: String(index), parentId: index ? String(index - 1) : "", collapsed: false }));
+  assert.equal(descendantsOf(cues, "0").length, 249);
+  assert.equal(depthOf(cues, cues.at(-1)), 249);
+  assert.equal(visibleCues(cues).length, 250);
+  cues[0].parentId = cues.at(-1).id;
+  assert.deepEqual(visibleCues(cues), []);
 });
 
 test("29.97 timecode uses drop-frame numbering", () => {
