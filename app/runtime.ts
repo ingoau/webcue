@@ -33,6 +33,56 @@ export const blobUrl = async (key: string) => {
   return file ? URL.createObjectURL(file) : "";
 };
 
+export async function analyzeAudio(file: Blob, bins = 220) {
+  const context = new AudioContext();
+  const buffer = await context.decodeAudioData(await file.arrayBuffer());
+  const waveform = Array.from({ length: buffer.numberOfChannels }, (_, channel) => {
+    const samples = buffer.getChannelData(channel), size = Math.max(1, Math.floor(samples.length / bins));
+    return Array.from({ length: bins }, (_, bin) => {
+      let peak = 0;
+      for (let index = bin * size; index < Math.min(samples.length, (bin + 1) * size); index++) peak = Math.max(peak, Math.abs(samples[index]));
+      return peak;
+    });
+  });
+  await context.close();
+  return { duration: buffer.duration, channels: buffer.numberOfChannels, waveform };
+}
+
+export async function playRoutedAudio(file: Blob, cue: { trimStart?: number; trimEnd?: number; rate?: number; audioRoutes?: number[][]; volume?: number; loops?: number }, sinkId: string, onEnded: () => void) {
+  const context = new AudioContext();
+  if (sinkId && "setSinkId" in context) await context.setSinkId(sinkId);
+  const buffer = await context.decodeAudioData(await file.arrayBuffer());
+  const trimStart = Math.max(0, Math.min(Number(cue.trimStart) || 0, buffer.duration));
+  const trimEnd = Math.max(trimStart, Math.min(Number(cue.trimEnd) || buffer.duration, buffer.duration));
+  const rate = Math.max(.01, (Number(cue.rate) || 100) / 100);
+  const routes = Array.from({ length: buffer.numberOfChannels }, (_, input) => cue.audioRoutes?.[input]?.length ? cue.audioRoutes[input] : [input + 1]);
+  const outputChannels = Math.max(1, ...routes.flat().map(Number));
+  const splitter = context.createChannelSplitter(buffer.numberOfChannels), merger = context.createChannelMerger(outputChannels), gain = context.createGain();
+  gain.gain.value = Math.max(0, Number(cue.volume) || 0) / 100;
+  merger.channelInterpretation = "discrete";
+  if (context.destination.maxChannelCount >= outputChannels) {
+    context.destination.channelCountMode = "explicit";
+    context.destination.channelInterpretation = "discrete";
+    context.destination.channelCount = outputChannels;
+  }
+  routes.forEach((outputs, input) => outputs.forEach((output: number) => splitter.connect(merger, input, Math.max(0, output - 1))));
+  merger.connect(gain).connect(context.destination);
+  const loops = Math.max(0, Number(cue.loops) || 0);
+  let source: AudioBufferSourceNode, plays = 0, stopped = false;
+  const start = () => {
+    source = context.createBufferSource(); source.buffer = buffer; source.playbackRate.value = rate; source.connect(splitter); plays++;
+    if (!loops) { source.loop = true; source.loopStart = trimStart; source.loopEnd = trimEnd; source.start(0, trimStart); return; }
+    source.onended = () => { if (stopped) return; if (plays < loops) start(); else onEnded(); };
+    source.start(0, trimStart, Math.max(.001, trimEnd - trimStart));
+  };
+  start();
+  return {
+    audio: context, gain, duration: loops ? (trimEnd - trimStart) / rate * loops : 0,
+    pause: () => context.suspend(), resume: () => context.resume(),
+    stop: async () => { stopped = true; if (source) { source.onended = null; try { source.stop(); } catch {} } if (context.state !== "closed") await context.close(); },
+  };
+}
+
 export async function exportWorkspace(workspace: any) {
   const copy = structuredClone(workspace);
   for (const list of copy.lists) for (const cue of list.cues) {
