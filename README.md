@@ -1,3 +1,5 @@
+Note: Basically this entire repo is AI generated as a kinda experiment. Expect stuff to break.
+
 # StageCue
 
 StageCue is a Chromium-native show-control workspace modeled on QLab.
