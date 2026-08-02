@@ -4,11 +4,11 @@ import test from "node:test";
 import { childrenOf, depthOf, descendantsOf, dropFrameSeconds, dropFrameText, migrateGroups, nextSibling, visibleCues } from "../app/model.mjs";
 import { cueTargetPatch, curveValue, dmxFrame, interpolateCue, midiMessage, parseLightCommand, sanitizeRichText, setPath, timelineLength } from "../app/features.mjs";
 
-async function render() {
+async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  return worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
+  return worker.fetch(new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }), { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } }, { waitUntil() {}, passThroughOnException() {} });
 }
 
 test("server-renders the complete StageCue workspace", async () => {
@@ -39,9 +39,33 @@ test("cue editing and output controls are functional", async () => {
 
 test("cue failures, visual fades, selection, and arm controls follow show-control behavior", async () => {
   const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  for (const behavior of ["runtimeWarnings", "warningByCue", "fadeValues: { volume: 0, opacity: 0 }", "setPlayhead(primary)", "Power", "Full Screen", "Exit Full Screen"]) assert.ok(page.includes(behavior), `${behavior} is wired`);
+  for (const behavior of ["runtimeWarnings", "warningByCue", "fadeValues: { volume: 0, opacity: 0 }", "setPlayhead(primary)", "Power"]) assert.ok(page.includes(behavior), `${behavior} is wired`);
   assert.doesNotMatch(page, /help \|\| notice/);
   assert.match(page, /\["Audio", "Video", "Mic", "Camera", "Text", "Timecode"\]/);
+});
+
+test("stage output and PWA installation surfaces are complete", async () => {
+  const [response, page, stage, pwa, worker, manifestText] = await Promise.all([
+    render("/stage-output?stage=default&name=Default%20Stage"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/stage-output/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/pwa.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
+  ]);
+  assert.equal(response.status, 200);
+  const html = await response.text(), manifest = JSON.parse(manifestText);
+  assert.match(html, /id="stage-layers"/);
+  assert.match(html, /Full Screen/);
+  assert.match(page, /window\.open\(url, `stagecue-stage-/);
+  assert.match(page, /getElementById\("stage-layers"\)/);
+  assert.match(stage, /requestFullscreen/);
+  assert.match(stage, /exitFullscreen/);
+  assert.match(pwa, /serviceWorker.*register\("\/sw\.js"\)/);
+  assert.match(worker, /addEventListener\("fetch"/);
+  assert.equal(manifest.display, "standalone");
+  assert.equal(manifest.start_url, "/");
+  assert.deepEqual(manifest.icons.map((icon) => icon.sizes), ["192x192", "512x512"]);
 });
 
 test("nested groups own, hide, and sequence their children", () => {

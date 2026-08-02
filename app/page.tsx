@@ -223,16 +223,10 @@ export default function Home() {
     } catch (error) { setConnections((value) => ({ ...value, [kind]: "Failed" })); fail(error); }
   };
   const openStage = (stageId = "default") => {
-    const stage = settings.videoStages.find((item) => item.id === stageId) || settings.videoStages[0], screen = devices.screens.find((item) => item.label === stage?.screen), features = screen ? `popup,left=${screen.left},top=${screen.top},width=${screen.width},height=${screen.height}` : "popup,width=1280,height=720", output = window.open("about:blank", `stagecue-stage-${stageId}`, features);
+    const stage = settings.videoStages.find((item) => item.id === stageId) || settings.videoStages[0], screen = devices.screens.find((item) => item.label === stage?.screen), features = screen ? `popup,left=${screen.left},top=${screen.top},width=${screen.width},height=${screen.height}` : "popup,width=1280,height=720", url = `/stage-output?stage=${encodeURIComponent(stageId)}&name=${encodeURIComponent(stage?.name || "Stage Output")}`, output = window.open(url, `stagecue-stage-${stageId}`, features);
     if (!output) return fail("The stage output was blocked. Allow popups for this site and try again.");
-    stageWindow.current.set(stageId, output); output.document.title = stage?.name || "Stage Output";
+    stageWindow.current.set(stageId, output); output.addEventListener("load", () => setStageLayers((layers) => ({ ...layers })), { once: true }); setStageLayers((layers) => ({ ...layers }));
     setRuntimeWarnings((items) => { if (!items.workspace) return items; const next = { ...items }; delete next.workspace; return next; });
-    output.document.body.style.cssText = "margin:0;background:#000;color:#fff;height:100vh;overflow:hidden;position:relative";
-    const fullscreen = output.document.createElement("button"); fullscreen.textContent = "Full Screen"; fullscreen.title = "Enter full screen"; fullscreen.style.cssText = "position:fixed;top:14px;right:14px;z-index:2147483647;border:1px solid #666;border-radius:5px;background:#242424;color:#fff;padding:7px 10px;font:13px system-ui;opacity:0;pointer-events:none;transition:opacity .15s;cursor:pointer";
-    output.document.body.onmouseenter = () => { fullscreen.style.opacity = "1"; fullscreen.style.pointerEvents = "auto"; }; output.document.body.onmouseleave = () => { fullscreen.style.opacity = "0"; fullscreen.style.pointerEvents = "none"; };
-    fullscreen.onclick = async () => { try { if (output.document.fullscreenElement) await output.document.exitFullscreen(); else await output.document.documentElement.requestFullscreen(); } catch (error) { fail(error); } };
-    output.document.addEventListener("fullscreenchange", () => { fullscreen.textContent = output.document.fullscreenElement ? "Exit Full Screen" : "Full Screen"; }); output.document.body.append(fullscreen);
-    setStageLayers((layers) => ({ ...layers }));
   };
   const openWorkspaceWindow = () => {
     const popup = window.open("about:blank", `stagecue-workspace-${uid()}`, "popup,width=1280,height=850");
@@ -245,11 +239,12 @@ export default function Home() {
   useEffect(() => {
     for (const [stageId, output] of stageWindow.current) {
       if (output.closed) { stageWindow.current.delete(stageId); continue; }
+      let root; try { root = output.document.getElementById("stage-layers"); } catch { continue; } if (!root) continue;
       const shown = Object.values(stageLayers).filter((layer) => (layer.videoStage || "default") === stageId), ids = new Set(shown.map((layer) => layer.cueId));
-      output.document.querySelectorAll("[data-cue]").forEach((node) => { if (!ids.has(node.dataset.cue)) { node._fxCleanup?.(); node.remove(); } });
+      root.querySelectorAll("[data-cue]").forEach((node) => { if (!ids.has(node.dataset.cue)) { node._fxCleanup?.(); node.remove(); } });
       for (const layer of shown.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))) {
-        let node = output.document.querySelector(`[data-cue="${layer.cueId}"]`);
-        if (!node) { node = output.document.createElement("div"); node.dataset.cue = layer.cueId; output.document.body.append(node); }
+        let node = root.querySelector(`[data-cue="${layer.cueId}"]`);
+        if (!node) { node = output.document.createElement("div"); node.dataset.cue = layer.cueId; root.append(node); }
         node.style.cssText = `position:absolute;inset:${layer.cropTop || 0}% ${layer.cropRight || 0}% ${layer.cropBottom || 0}% ${layer.cropLeft || 0}%;display:grid;place-items:center;overflow:hidden;background:${layer.backgroundColor || "transparent"};color:${layer.textColor || "#fff"};font:${layer.fontWeight || 700} ${layer.fontSize || 96}px/${layer.lineHeight || 1.2} ${layer.fontFamily || "system-ui"};text-align:${layer.align || "center"};opacity:${layer.panicking ? 0 : (layer.opacity ?? 100) / 100};transform-origin:${layer.anchorX || 50}% ${layer.anchorY || 50}%;transform:perspective(${layer.perspective || 1000}px) translate(${layer.x || 0}px,${layer.y || 0}px) scale(${(layer.scale || 100) / 100}) rotate(${layer.rotation || 0}deg) rotateX(${layer.rotateX || 0}deg) rotateY(${layer.rotateY || 0}deg);z-index:${layer.zIndex || 0};mix-blend-mode:${layer.blendMode || "normal"};border-radius:${layer.maskRadius || 0}%;transition:opacity ${layer.panicDuration || 0}s linear`;
         if (["text", "timecode"].includes(layer.type)) { node.style.padding = "2%"; node.style.boxSizing = "border-box"; node.style.width = `${layer.textWidth || 100}%`; if (layer.type === "text") node.innerHTML = sanitizeRichText(layer.html || layer.content); else node.textContent = layer.content; }
         else { let media = node.querySelector("video"); if (!media) { media = output.document.createElement("video"); media.autoplay = true; media.muted = true; media.playsInline = true; media.style.cssText = "width:100%;height:100%"; node.append(media); } media.loop = layer.loops === 0; media.playbackRate = (layer.rate || 100) / 100; media.preservesPitch = Boolean(layer.preservePitch); media.style.objectFit = layer.fit || "contain"; media.style.filter = visualFilter(layer.videoEffects); if (layer.stream && media.srcObject !== layer.stream) media.srcObject = layer.stream; else if (layer.content && media.src !== layer.content) { media.src = layer.content; media.currentTime = layer.trimStart || 0; } media.play().catch(() => {}); const gpu = (layer.videoEffects || []).some((effect) => effect.enabled !== false && ["brightness", "contrast", "saturate", "hue-rotate"].includes(effect.type)); if (gpu && !node.querySelector("canvas")) { const canvas = output.document.createElement("canvas"); canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:inherit"; node.append(canvas); media.style.visibility = "hidden"; node._fxCleanup = startVideoFx(canvas, media, layer.videoEffects); } }
