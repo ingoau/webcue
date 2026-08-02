@@ -71,6 +71,14 @@ test("stage output and PWA installation surfaces are complete", async () => {
   assert.deepEqual(manifest.icons.map((icon) => icon.sizes), ["192x192", "512x512"]);
 });
 
+test("live audit UI fixes remain wired", async () => {
+  const [page, stage, css] = await Promise.all(["page.tsx", "stage-output/page.tsx", "globals.css"].map((file) => readFile(new URL(`../app/${file}`, import.meta.url), "utf8")));
+  assert.match(css, /\.app:not\(\.inspector-hidden\):not\(\.show-mode\)/);
+  assert.match(page, /setContext\(null\); setOpenMenu/);
+  for (const behavior of ["useDialog", "aria-modal", "closest?.(\"[role='dialog']\")", "Close Workspace Status", "Close cue selector", "No cue triggers configured", "No lighting fixtures patched", "No timecode cues or triggers configured", "Apply second color after start", "countLabel"]) assert.ok(page.includes(behavior), `${behavior} is wired`);
+  for (const text of ["Stage output idle", "Open from StageCue to connect", "Full Screen"]) assert.ok(stage.includes(text), `${text} is rendered`);
+});
+
 test("nested groups own, hide, and sequence their children", () => {
   const cues = [{ id: "g", type: "Group", number: "1", target: "2,3", collapsed: false, parentId: "" }, { id: "a", number: "2", parentId: "" }, { id: "n", type: "Group", number: "3", parentId: "" }, { id: "b", number: "4", parentId: "n" }, { id: "z", number: "5", parentId: "" }];
   const migrated = migrateGroups(cues);
