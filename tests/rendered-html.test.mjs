@@ -58,6 +58,9 @@ test("stage output and PWA installation surfaces are complete", async () => {
   assert.match(html, /id="stage-layers"/);
   assert.match(html, /Full Screen/);
   assert.match(page, /window\.open\(url, `stagecue-stage-/);
+  assert.match(page, /onClick=\{\(\) => openStage\(\)\}/);
+  assert.doesNotMatch(page, /onClick=\{openStage\}/);
+  assert.match(page, /typeof stageId === "string" \? stageId : "default"/);
   assert.match(page, /getElementById\("stage-layers"\)/);
   assert.match(stage, /requestFullscreen/);
   assert.match(stage, /exitFullscreen/);
