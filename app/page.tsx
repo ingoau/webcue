@@ -1,95 +1,677 @@
-"use client";
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/purity, react-hooks/exhaustive-deps */
-
 import {
-  Activity, AlertTriangle, AlignLeft, Box, Camera, ChevronDown, ChevronRight, CirclePlay, Clock3,
-  Copy, CornerDownRight, ExternalLink, FileAudio, FileDown, Flag, FolderOpen, Gauge, Group, Lightbulb, List,
-  Ellipsis, Maximize, Menu, MessageSquare, Mic2, MonitorPlay, Music2, Network, PanelLeft, Pause, Play,
-  Plus, Power, RotateCcw, Search, Settings, Square, Target, Timer, Trash2,
-  Star, Type, Video, Volume2, WandSparkles, X, Zap,
+  Activity,
+  AlertTriangle,
+  AlignLeft,
+  Box,
+  Camera,
+  ChevronDown,
+  ChevronRight,
+  CirclePlay,
+  Clock3,
+  Copy,
+  CornerDownRight,
+  ExternalLink,
+  FileAudio,
+  FileDown,
+  Flag,
+  FolderOpen,
+  Gauge,
+  Group,
+  Lightbulb,
+  List,
+  Ellipsis,
+  Maximize,
+  Menu,
+  MessageSquare,
+  Mic2,
+  MonitorPlay,
+  Music2,
+  Network,
+  PanelLeft,
+  Pause,
+  Play,
+  Plus,
+  Power,
+  RotateCcw,
+  Search,
+  Settings,
+  Square,
+  Target,
+  Timer,
+  Trash2,
+  Star,
+  Type,
+  Video,
+  Volume2,
+  WandSparkles,
+  X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { analyzeAudio, blobUrl, collaborationSocket, exportWorkspace, importWorkspaceFiles, loadFile, playRoutedAudio, requestMidi, requestSerial, scheduleMidiFile, sendNetwork, startLtc, startVideoFx, storeFile, writeSerial } from "./runtime";
-import { childrenOf, depthOf, descendantsOf, dropFrameSeconds, dropFrameText, migrateGroups, nextSibling, visibleCues } from "./model.mjs";
-import { cueTargetPatch, curveValue, dmxFrame, interpolateCue, midiMessage, parseLightCommand, sanitizeRichText, setPath, timelineLength, visualFilter } from "./features.mjs";
+import {
+  analyzeAudio,
+  blobUrl,
+  collaborationSocket,
+  exportWorkspace,
+  importWorkspaceFiles,
+  loadFile,
+  playRoutedAudio,
+  requestMidi,
+  requestSerial,
+  scheduleMidiFile,
+  sendNetwork,
+  startLtc,
+  startVideoFx,
+  storeFile,
+  writeSerial,
+} from "./runtime";
+import {
+  childrenOf,
+  depthOf,
+  descendantsOf,
+  dropFrameSeconds,
+  dropFrameText,
+  migrateGroups,
+  nextSibling,
+  visibleCues,
+} from "./model.mjs";
+import {
+  cueTargetPatch,
+  curveValue,
+  dmxFrame,
+  interpolateCue,
+  midiMessage,
+  parseLightCommand,
+  sanitizeRichText,
+  setPath,
+  timelineLength,
+  visualFilter,
+} from "./features.mjs";
 
 const cueTypes = [
-  ["Group", Group], ["Audio", Volume2], ["Mic", Mic2], ["Video", Video], ["Camera", Camera], ["Text", Type],
-  ["Light", Lightbulb], ["Fade", Gauge], ["Network", Network], ["MIDI", Music2], ["MIDI File", FileAudio],
-  ["Timecode", Clock3], ["Start", Play], ["Stop", Square], ["Pause", Pause], ["Load", FileDown],
-  ["Reset", RotateCcw], ["Devamp", WandSparkles], ["GoTo", ChevronRight], ["Target", Target],
-  ["Arm", Power], ["Disarm", X], ["Wait", Timer], ["Memo", MessageSquare], ["Script", Zap],
+  ["Group", Group],
+  ["Audio", Volume2],
+  ["Mic", Mic2],
+  ["Video", Video],
+  ["Camera", Camera],
+  ["Text", Type],
+  ["Light", Lightbulb],
+  ["Fade", Gauge],
+  ["Network", Network],
+  ["MIDI", Music2],
+  ["MIDI File", FileAudio],
+  ["Timecode", Clock3],
+  ["Start", Play],
+  ["Stop", Square],
+  ["Pause", Pause],
+  ["Load", FileDown],
+  ["Reset", RotateCcw],
+  ["Devamp", WandSparkles],
+  ["GoTo", ChevronRight],
+  ["Target", Target],
+  ["Arm", Power],
+  ["Disarm", X],
+  ["Wait", Timer],
+  ["Memo", MessageSquare],
+  ["Script", Zap],
 ];
 const cueSections = {
   Audio: ["Audio", "Mic"],
   Video: ["Video", "Camera", "Text"],
   Lighting: ["Light"],
-  Control: ["Fade", "Network", "MIDI", "MIDI File", "Timecode", "Start", "Stop", "Pause", "Load", "Reset", "Devamp", "GoTo", "Target", "Arm", "Disarm", "Wait", "Script"],
+  Control: [
+    "Fade",
+    "Network",
+    "MIDI",
+    "MIDI File",
+    "Timecode",
+    "Start",
+    "Stop",
+    "Pause",
+    "Load",
+    "Reset",
+    "Devamp",
+    "GoTo",
+    "Target",
+    "Arm",
+    "Disarm",
+    "Wait",
+    "Script",
+  ],
   Other: ["Group", "Memo"],
 };
-const defaultStarredCueTypes = ["Audio", "Mic", "Video", "Text", "Light", "Fade", "Start", "Stop", "Pause", "Group", "Memo"];
+const defaultStarredCueTypes = [
+  "Audio",
+  "Mic",
+  "Video",
+  "Text",
+  "Light",
+  "Fade",
+  "Start",
+  "Stop",
+  "Pause",
+  "Group",
+  "Memo",
+];
 const icons = Object.fromEntries(cueTypes);
-const colors = ["none", "red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta", "gray"];
+const colors = [
+  "none",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+  "magenta",
+  "gray",
+];
 const uid = () => Math.random().toString(36).slice(2, 9);
-const countLabel = (count, singular) => `${count} ${singular}${count === 1 ? "" : "s"}`;
-const time = (value = 0) => `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(Math.floor(value % 60)).padStart(2, "0")}.${String(Math.round(value % 1 * 100)).padStart(2, "0")}`;
+const countLabel = (count, singular) =>
+  `${count} ${singular}${count === 1 ? "" : "s"}`;
+const time = (value = 0) =>
+  `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(Math.floor(value % 60)).padStart(2, "0")}.${String(Math.round((value % 1) * 100)).padStart(2, "0")}`;
 const timecodeSeconds = dropFrameSeconds;
 const timecodeText = dropFrameText;
-const midiMatches = (pattern, data) => { const parts = String(pattern).split(/[\s,]+/).filter(Boolean); return parts.length === data.length && parts.every((part, index) => { if (part === "any") return true; if (part.startsWith(">")) return data[index] > Number(part.slice(1)); if (part.startsWith("<")) return data[index] < Number(part.slice(1)); return Number(part) === data[index]; }); };
-const keyToken = (event) => [...(event.metaKey ? ["Cmd"] : []), ...(event.ctrlKey ? ["Ctrl"] : []), ...(event.altKey ? ["Option"] : []), ...(event.shiftKey ? ["Shift"] : []), event.code === "Space" ? "Space" : event.key.length === 1 ? event.key.toUpperCase() : event.key].join("+");
-const baseCue = { target: "", parentId: "", collapsed: false, payload: "", method: "POST", networkMode: "Once", networkEnd: "", networkFps: 30, pre: 0, duration: 0, post: 0, continueMode: "Do not continue", notes: "", armed: true, skipIfDisarmed: false, autoLoad: false, flagged: false, color: "none", secondColor: "none", secondColorAfterStart: false, volume: 80, rate: 100, preservePitch: false, loops: 1, trimStart: 0, trimEnd: 0, slices: [], holdAtEnd: false, fadeIn: 0, fadeOut: 0, sourceChannels: 0, inputNames: [], inputTrims: {}, mutedInputs: [], soloInputs: [], audioGangs: [], audioRoutes: [], audioLevels: {}, outputTrims: {}, audioPatch: "default", effects: [], waveform: [], hotkey: "", hotkeyEnabled: false, wallClock: "", wallClockEnabled: false, wallClockDays: [0,1,2,3,4,5,6], timecodeTrigger: "", timecodeTriggerEnabled: false, midiTrigger: "", midiTriggerEnabled: false, fadeOthers: false, fadeOthersDuration: 0, fadeOthersScope: "All other cues", duckOthers: false, duckAmount: -12, duckDuration: .25, secondTrigger: "Does nothing", secondTriggerOnRelease: false, midiCommand: "Note On", midiChannel: 1, midiData1: 60, midiData2: 64, midiDeviceId: 127, midiFormat: 16, midiCueNumber: "", midiPatch: "default", cameraAudio: false, cameraSource: "Camera", micSource: "Microphone", groupMode: "Timeline", playlistShuffle: false, playlistLoop: false, playlistCrossfade: 0, playlistFadeInCurve: "linear", playlistFadeOutCurve: "linear", textHtml: "", textColor: "#ffffff", backgroundColor: "#000000", fontSize: 96, fontFamily: "system-ui", fontWeight: 700, align: "center", textWidth: 100, lineHeight: 1.2, fit: "contain", opacity: 100, x: 0, y: 0, scale: 100, rotation: 0, rotateX: 0, rotateY: 0, perspective: 1000, anchorX: 50, anchorY: 50, cropTop: 0, cropRight: 0, cropBottom: 0, cropLeft: 0, maskRadius: 0, zIndex: 0, blendMode: "normal", videoStage: "default", videoEffects: [], fadeVolume: true, fadeOpacity: false, fadeRelative: false, fadeCurve: "ease-in-out", fadeParameters: { volume: true, opacity: false }, fadeValues: { volume: 0, opacity: 0 }, timecodeMode: "Display", timecodeFps: 30, timecodeStart: "00:00:00:00", timecodeEnd: "00:00:10:00", timecodePatch: "default", lightPatch: "default", lightLevels: {}, lightCurve: "linear" };
-const defaults = Object.fromEntries(cueTypes.map(([type]) => [type, { name: `Untitled ${type} Cue`, color: "none", continueMode: "Do not continue" }]));
+const midiMatches = (pattern, data) => {
+  const parts = String(pattern)
+    .split(/[\s,]+/)
+    .filter(Boolean);
+  return (
+    parts.length === data.length &&
+    parts.every((part, index) => {
+      if (part === "any") return true;
+      if (part.startsWith(">")) return data[index] > Number(part.slice(1));
+      if (part.startsWith("<")) return data[index] < Number(part.slice(1));
+      return Number(part) === data[index];
+    })
+  );
+};
+const keyToken = (event) =>
+  [
+    ...(event.metaKey ? ["Cmd"] : []),
+    ...(event.ctrlKey ? ["Ctrl"] : []),
+    ...(event.altKey ? ["Option"] : []),
+    ...(event.shiftKey ? ["Shift"] : []),
+    event.code === "Space"
+      ? "Space"
+      : event.key.length === 1
+        ? event.key.toUpperCase()
+        : event.key,
+  ].join("+");
+const baseCue = {
+  target: "",
+  parentId: "",
+  collapsed: false,
+  payload: "",
+  method: "POST",
+  networkMode: "Once",
+  networkEnd: "",
+  networkFps: 30,
+  pre: 0,
+  duration: 0,
+  post: 0,
+  continueMode: "Do not continue",
+  notes: "",
+  armed: true,
+  skipIfDisarmed: false,
+  autoLoad: false,
+  flagged: false,
+  color: "none",
+  secondColor: "none",
+  secondColorAfterStart: false,
+  volume: 80,
+  rate: 100,
+  preservePitch: false,
+  loops: 1,
+  trimStart: 0,
+  trimEnd: 0,
+  slices: [],
+  holdAtEnd: false,
+  fadeIn: 0,
+  fadeOut: 0,
+  sourceChannels: 0,
+  inputNames: [],
+  inputTrims: {},
+  mutedInputs: [],
+  soloInputs: [],
+  audioGangs: [],
+  audioRoutes: [],
+  audioLevels: {},
+  outputTrims: {},
+  audioPatch: "default",
+  effects: [],
+  waveform: [],
+  hotkey: "",
+  hotkeyEnabled: false,
+  wallClock: "",
+  wallClockEnabled: false,
+  wallClockDays: [0, 1, 2, 3, 4, 5, 6],
+  timecodeTrigger: "",
+  timecodeTriggerEnabled: false,
+  midiTrigger: "",
+  midiTriggerEnabled: false,
+  fadeOthers: false,
+  fadeOthersDuration: 0,
+  fadeOthersScope: "All other cues",
+  duckOthers: false,
+  duckAmount: -12,
+  duckDuration: 0.25,
+  secondTrigger: "Does nothing",
+  secondTriggerOnRelease: false,
+  midiCommand: "Note On",
+  midiChannel: 1,
+  midiData1: 60,
+  midiData2: 64,
+  midiDeviceId: 127,
+  midiFormat: 16,
+  midiCueNumber: "",
+  midiPatch: "default",
+  cameraAudio: false,
+  cameraSource: "Camera",
+  micSource: "Microphone",
+  groupMode: "Timeline",
+  playlistShuffle: false,
+  playlistLoop: false,
+  playlistCrossfade: 0,
+  playlistFadeInCurve: "linear",
+  playlistFadeOutCurve: "linear",
+  textHtml: "",
+  textColor: "#ffffff",
+  backgroundColor: "#000000",
+  fontSize: 96,
+  fontFamily: "system-ui",
+  fontWeight: 700,
+  align: "center",
+  textWidth: 100,
+  lineHeight: 1.2,
+  fit: "contain",
+  opacity: 100,
+  x: 0,
+  y: 0,
+  scale: 100,
+  rotation: 0,
+  rotateX: 0,
+  rotateY: 0,
+  perspective: 1000,
+  anchorX: 50,
+  anchorY: 50,
+  cropTop: 0,
+  cropRight: 0,
+  cropBottom: 0,
+  cropLeft: 0,
+  maskRadius: 0,
+  zIndex: 0,
+  blendMode: "normal",
+  videoStage: "default",
+  videoEffects: [],
+  fadeVolume: true,
+  fadeOpacity: false,
+  fadeRelative: false,
+  fadeCurve: "ease-in-out",
+  fadeParameters: { volume: true, opacity: false },
+  fadeValues: { volume: 0, opacity: 0 },
+  timecodeMode: "Display",
+  timecodeFps: 30,
+  timecodeStart: "00:00:00:00",
+  timecodeEnd: "00:00:10:00",
+  timecodePatch: "default",
+  lightPatch: "default",
+  lightLevels: {},
+  lightCurve: "linear",
+};
+const defaults = Object.fromEntries(
+  cueTypes.map(([type]) => [
+    type,
+    {
+      name: `Untitled ${type} Cue`,
+      color: "none",
+      continueMode: "Do not continue",
+    },
+  ]),
+);
 const initial = {
   name: "Untitled Workspace",
-  lists: [{ id: "main", name: "Main Cue List", kind: "list", cues: [] }, { id: "cart", name: "Cue Cart", kind: "cart", cues: [] }],
+  lists: [
+    { id: "main", name: "Main Cue List", kind: "list", cues: [] },
+    { id: "cart", name: "Cue Cart", kind: "cart", cues: [] },
+  ],
   currentList: "main",
-  settings: { goKey: "Space", panicKey: "Escape", pauseKey: "[", resumeKey: "]", previewKey: "V", stopSelectedKey: "S", pauseSelectedKey: "P", minGoInterval: 0, requireKeyUp: true, panicDuration: 1, cueSize: "Medium", cartSize: "Medium", activeNewest: "Bottom", autoNumber: true, increment: 1, lockPlayhead: true, starredCueTypes: defaultStarredCueTypes, audition: false, auditionAudio: true, auditionVideo: true, auditionMidi: false, auditionTimecode: false, auditionLtc: false, auditionNetwork: false, auditionLight: false, collaboration: true, collaborationRemote: false, collaborationRoom: "default", collaborationUrl: "", audioInput: "", videoInput: "", audioOutput: "", audioOutputChannels: 8, midiOutput: "", baudRate: 250000, networkDefaultUrl: "", networkDefaultMethod: "POST", audioPatches: [{ id: "default", name: "Default Audio Output", deviceId: "", channels: 8 }], videoStages: [{ id: "default", name: "Default Stage", screen: "" }], midiPatches: [{ id: "default", name: "Default MIDI Output", deviceId: "" }], lightPatches: [{ id: "default", name: "Serial DMX", baudRate: 250000 }], fixtures: [] },
-  templates: defaults, workspaceTemplates: [],
+  settings: {
+    goKey: "Space",
+    panicKey: "Escape",
+    pauseKey: "[",
+    resumeKey: "]",
+    previewKey: "V",
+    stopSelectedKey: "S",
+    pauseSelectedKey: "P",
+    minGoInterval: 0,
+    requireKeyUp: true,
+    panicDuration: 1,
+    cueSize: "Medium",
+    cartSize: "Medium",
+    activeNewest: "Bottom",
+    autoNumber: true,
+    increment: 1,
+    lockPlayhead: true,
+    starredCueTypes: defaultStarredCueTypes,
+    audition: false,
+    auditionAudio: true,
+    auditionVideo: true,
+    auditionMidi: false,
+    auditionTimecode: false,
+    auditionLtc: false,
+    auditionNetwork: false,
+    auditionLight: false,
+    collaboration: true,
+    collaborationRemote: false,
+    collaborationRoom: "default",
+    collaborationUrl: "",
+    audioInput: "",
+    videoInput: "",
+    audioOutput: "",
+    audioOutputChannels: 8,
+    midiOutput: "",
+    baudRate: 250000,
+    networkDefaultUrl: "",
+    networkDefaultMethod: "POST",
+    audioPatches: [
+      {
+        id: "default",
+        name: "Default Audio Output",
+        deviceId: "",
+        channels: 8,
+      },
+    ],
+    videoStages: [{ id: "default", name: "Default Stage", screen: "" }],
+    midiPatches: [{ id: "default", name: "Default MIDI Output", deviceId: "" }],
+    lightPatches: [{ id: "default", name: "Serial DMX", baudRate: 250000 }],
+    fixtures: [],
+  },
+  templates: defaults,
+  workspaceTemplates: [],
 };
-const normalizeWorkspace = (value) => ({ ...initial, ...value, lists: (value.lists || initial.lists).map((list) => ({ ...list, cues: migrateGroups(list.cues.map((cue) => ({ ...baseCue, ...cue, fadeParameters: { ...baseCue.fadeParameters, ...cue.fadeParameters }, fadeValues: { ...baseCue.fadeValues, ...cue.fadeValues } }))) })), settings: { ...initial.settings, ...value.settings, ...(value.settings?.starredCueTypes?.join() === "Audio,Video,Fade,Group" ? { starredCueTypes: defaultStarredCueTypes } : {}) }, templates: { ...defaults, ...value.templates }, workspaceTemplates: value.workspaceTemplates || [] });
-const cueWarnings = (workspace) => workspace.lists.flatMap((list) => list.cues.flatMap((cue) => {
-  const warnings = [];
-  if (["Audio", "Video", "MIDI File"].includes(cue.type) && !cue.fileKey) warnings.push("Missing media target");
-  if (["Start", "Stop", "Pause", "Load", "Reset", "GoTo", "Arm", "Disarm", "Fade", "Devamp"].includes(cue.type) && !workspace.lists.some((item) => item.cues.some((target) => target.number === cue.target))) warnings.push("Missing cue target");
-  if (cue.type === "Group" && !childrenOf(list.cues, cue.id).length) warnings.push("Group has no children");
-  if (cue.type === "Network" && !/^https?:\/\/|^wss?:\/\//i.test(cue.target)) warnings.push("Invalid network destination");
-  if (cue.type === "Script" && !cue.target.trim()) warnings.push("Missing script");
-  return warnings.map((message) => ({ cue, list, message }));
-}));
-const tabsForCue = (cue) => cue?.type === "Group" ? ["Basics", "Triggers", "Mode", "Timeline"] : cue?.type === "Audio" ? ["Basics", "Triggers", "I/O", "Time & Loops", "Levels", "Trim", "Audio FX"] : ["Basics", "Triggers", ...(["Text", "Video", "Camera", "Mic", "Network", "MIDI", "MIDI File", "Light", "Timecode"].includes(cue?.type) ? ["Action"] : []), ...(["Text", "Video", "Camera"].includes(cue?.type) ? ["Geometry", "Video FX"] : []), ...(["Mic", "Fade", "Devamp"].includes(cue?.type) ? ["Levels"] : []), ...(cue?.type === "Video" ? ["Time & Loops"] : [])];
+const normalizeWorkspace = (value) => ({
+  ...initial,
+  ...value,
+  lists: (value.lists || initial.lists).map((list) => ({
+    ...list,
+    cues: migrateGroups(
+      list.cues.map((cue) => ({
+        ...baseCue,
+        ...cue,
+        fadeParameters: { ...baseCue.fadeParameters, ...cue.fadeParameters },
+        fadeValues: { ...baseCue.fadeValues, ...cue.fadeValues },
+      })),
+    ),
+  })),
+  settings: {
+    ...initial.settings,
+    ...value.settings,
+    ...(value.settings?.starredCueTypes?.join() === "Audio,Video,Fade,Group"
+      ? { starredCueTypes: defaultStarredCueTypes }
+      : {}),
+  },
+  templates: { ...defaults, ...value.templates },
+  workspaceTemplates: value.workspaceTemplates || [],
+});
+const cueWarnings = (workspace) =>
+  workspace.lists.flatMap((list) =>
+    list.cues.flatMap((cue) => {
+      const warnings = [];
+      if (["Audio", "Video", "MIDI File"].includes(cue.type) && !cue.fileKey)
+        warnings.push("Missing media target");
+      if (
+        [
+          "Start",
+          "Stop",
+          "Pause",
+          "Load",
+          "Reset",
+          "GoTo",
+          "Arm",
+          "Disarm",
+          "Fade",
+          "Devamp",
+        ].includes(cue.type) &&
+        !workspace.lists.some((item) =>
+          item.cues.some((target) => target.number === cue.target),
+        )
+      )
+        warnings.push("Missing cue target");
+      if (cue.type === "Group" && !childrenOf(list.cues, cue.id).length)
+        warnings.push("Group has no children");
+      if (
+        cue.type === "Network" &&
+        !/^https?:\/\/|^wss?:\/\//i.test(cue.target)
+      )
+        warnings.push("Invalid network destination");
+      if (cue.type === "Script" && !cue.target.trim())
+        warnings.push("Missing script");
+      return warnings.map((message) => ({ cue, list, message }));
+    }),
+  );
+const tabsForCue = (cue) =>
+  cue?.type === "Group"
+    ? ["Basics", "Triggers", "Mode", "Timeline"]
+    : cue?.type === "Audio"
+      ? [
+          "Basics",
+          "Triggers",
+          "I/O",
+          "Time & Loops",
+          "Levels",
+          "Trim",
+          "Audio FX",
+        ]
+      : [
+          "Basics",
+          "Triggers",
+          ...([
+            "Text",
+            "Video",
+            "Camera",
+            "Mic",
+            "Network",
+            "MIDI",
+            "MIDI File",
+            "Light",
+            "Timecode",
+          ].includes(cue?.type)
+            ? ["Action"]
+            : []),
+          ...(["Text", "Video", "Camera"].includes(cue?.type)
+            ? ["Geometry", "Video FX"]
+            : []),
+          ...(["Mic", "Fade", "Devamp"].includes(cue?.type) ? ["Levels"] : []),
+          ...(cue?.type === "Video" ? ["Time & Loops"] : []),
+        ];
 const menuData = {
-  File: ["New Workspace", "Open Workspace...", "Save", "Save As...", "Save As Template", "-", "Workspace Files", "Workspace Settings"],
-  Edit: ["Undo", "Redo", "-", "Cut", "Copy", "Paste", "Duplicate", "Paste Cue Properties...", "Paste and Match Style", "Delete", "Select All", "-", "Move Cue Up", "Move Cue Down"],
+  File: [
+    "New Workspace",
+    "Open Workspace...",
+    "Save",
+    "Save As...",
+    "Save As Template",
+    "-",
+    "Workspace Files",
+    "Workspace Settings",
+  ],
+  Edit: [
+    "Undo",
+    "Redo",
+    "-",
+    "Cut",
+    "Copy",
+    "Paste",
+    "Duplicate",
+    "Paste Cue Properties...",
+    "Paste and Match Style",
+    "Delete",
+    "Select All",
+    "-",
+    "Move Cue Up",
+    "Move Cue Down",
+  ],
   Cues: cueTypes.map(([name]) => name),
-  Tools: ["Load to time...", "Renumber cues", "Delete cue numbers", "Jump to selected cue target", "Record cue sequence...", "Toggle audition mode", "Live fade preview", "Highlight related cues", "Collect workspace media...", "Relink missing media...", "Workspace Status", "Open device settings"],
-  View: ["Enter Full Screen", "Inspector", "Pop Out Inspector", "GO Button / Standby Display / Toolbar", "Toolbox", "Lists / Carts & Active Cues", "Warnings", "Select cue...", "Select next", "Select previous", "Select next inspector tab", "Select previous inspector tab", "Move playhead to selected cue", "Move playhead to next cue", "Move playhead to previous cue", "Collapse all groups", "Expand all groups", "Enter Edit Mode", "Enter Show Mode"],
-  Window: ["Open Workspace in New Window", "Open Stage Output", "Workspace Status", "Override Controls", "Light Dashboard", "Light Patch", "DMX Status", "Timecode Status", "Workspace Settings"],
-  Help: ["StageCue Help", "Keyboard Shortcuts", "Browser limitations", "About StageCue"],
+  Tools: [
+    "Load to time...",
+    "Renumber cues",
+    "Delete cue numbers",
+    "Jump to selected cue target",
+    "Record cue sequence...",
+    "Toggle audition mode",
+    "Live fade preview",
+    "Highlight related cues",
+    "Collect workspace media...",
+    "Relink missing media...",
+    "Workspace Status",
+    "Open device settings",
+  ],
+  View: [
+    "Enter Full Screen",
+    "Inspector",
+    "Pop Out Inspector",
+    "GO Button / Standby Display / Toolbar",
+    "Toolbox",
+    "Lists / Carts & Active Cues",
+    "Warnings",
+    "Select cue...",
+    "Select next",
+    "Select previous",
+    "Select next inspector tab",
+    "Select previous inspector tab",
+    "Move playhead to selected cue",
+    "Move playhead to next cue",
+    "Move playhead to previous cue",
+    "Collapse all groups",
+    "Expand all groups",
+    "Enter Edit Mode",
+    "Enter Show Mode",
+  ],
+  Window: [
+    "Open Workspace in New Window",
+    "Open Stage Output",
+    "Workspace Status",
+    "Override Controls",
+    "Light Dashboard",
+    "Light Patch",
+    "DMX Status",
+    "Timecode Status",
+    "Workspace Settings",
+  ],
+  Help: [
+    "WebCue Help",
+    "Keyboard Shortcuts",
+    "Browser limitations",
+    "About WebCue",
+  ],
 };
 
 function IconButton({ icon: Icon, label, active, onClick, disabled = false }) {
-  return <button className={`icon-button ${active ? "active" : ""}`} title={label} aria-label={label} onClick={onClick} disabled={disabled}><Icon size={16} /></button>;
+  return (
+    <button
+      className={`icon-button ${active ? "active" : ""}`}
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <Icon size={16} />
+    </button>
+  );
 }
 
-function FavoriteCueButton({ name, Icon, add, move, context, vertical = false, className = "starred-cue" }) {
-  return <button className={className} draggable onDragStart={(event) => { event.dataTransfer.setData("application/stagecue-star", name); event.dataTransfer.setData("application/stagecue-type", name); }} onDragOver={(event) => event.dataTransfer.types.includes("application/stagecue-star") && event.preventDefault()} onDrop={(event) => { event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(), after = vertical ? event.clientY > box.top + box.height / 2 : event.clientX > box.left + box.width / 2; move(event.dataTransfer.getData("application/stagecue-star"), name, after); }} onClick={() => add(name)} onContextMenu={(event) => context(event, name)} title={`New ${name} cue`}><Icon size={className === "starred-cue" ? 17 : 15} /><span>{name}</span></button>;
+function FavoriteCueButton({
+  name,
+  Icon,
+  add,
+  move,
+  context,
+  vertical = false,
+  className = "starred-cue",
+}) {
+  return (
+    <button
+      className={className}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData("application/webcue-star", name);
+        event.dataTransfer.setData("application/webcue-type", name);
+      }}
+      onDragOver={(event) =>
+        event.dataTransfer.types.includes("application/webcue-star") &&
+        event.preventDefault()
+      }
+      onDrop={(event) => {
+        event.preventDefault();
+        const box = event.currentTarget.getBoundingClientRect(),
+          after = vertical
+            ? event.clientY > box.top + box.height / 2
+            : event.clientX > box.left + box.width / 2;
+        move(
+          event.dataTransfer.getData("application/webcue-star"),
+          name,
+          after,
+        );
+      }}
+      onClick={() => add(name)}
+      onContextMenu={(event) => context(event, name)}
+      title={`New ${name} cue`}
+    >
+      <Icon size={className === "starred-cue" ? 17 : 15} />
+      <span>{name}</span>
+    </button>
+  );
 }
 
 function useDialog(close, label) {
   const ref = useRef(null);
   useEffect(() => {
-    const previous = document.activeElement, timer = setTimeout(() => ref.current?.querySelector("[autofocus],input:not([type='hidden']):not([hidden]),select,textarea,button")?.focus());
-    return () => { clearTimeout(timer); if (previous instanceof HTMLElement) previous.focus(); };
+    const previous = document.activeElement,
+      timer = setTimeout(() =>
+        ref.current
+          ?.querySelector(
+            "[autofocus],input:not([type='hidden']):not([hidden]),select,textarea,button",
+          )
+          ?.focus(),
+      );
+    return () => {
+      clearTimeout(timer);
+      if (previous instanceof HTMLElement) previous.focus();
+    };
   }, []);
   const onKeyDown = (event) => {
-    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); return; }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      return;
+    }
     if (event.key !== "Tab") return;
-    const focusable = [...ref.current.querySelectorAll("button:not(:disabled),input:not(:disabled):not([type='hidden']),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex='-1'])")], first = focusable[0], last = focusable.at(-1);
+    const focusable = [
+        ...ref.current.querySelectorAll(
+          "button:not(:disabled),input:not(:disabled):not([type='hidden']),select:not(:disabled),textarea:not(:disabled),[tabindex]:not([tabindex='-1'])",
+        ),
+      ],
+      first = focusable[0],
+      last = focusable.at(-1);
     if (!first) event.preventDefault();
-    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    else if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   };
-  return { ref, role: "dialog", "aria-modal": true, "aria-label": label, onKeyDown };
+  return {
+    ref,
+    role: "dialog",
+    "aria-modal": true,
+    "aria-label": label,
+    onKeyDown,
+  };
 }
 
 export default function Home() {
@@ -109,7 +691,12 @@ export default function Home() {
   const [operationsOpen, setOperationsOpen] = useState("");
   const [propertyPasteOpen, setPropertyPasteOpen] = useState(false);
   const [selectCueOpen, setSelectCueOpen] = useState(false);
-  const [pasteProperties, setPasteProperties] = useState(["timing", "triggers", "appearance", "action"]);
+  const [pasteProperties, setPasteProperties] = useState([
+    "timing",
+    "triggers",
+    "appearance",
+    "action",
+  ]);
   const [logs, setLogs] = useState([]);
   const [recording, setRecording] = useState(null);
   const [settingsPage, setSettingsPage] = useState("General");
@@ -124,169 +711,754 @@ export default function Home() {
   const [sidebarTab, setSidebarTab] = useState("lists");
   const [inspectorTab, setInspectorTab] = useState("Basics");
   const [inspectorHeight, setInspectorHeight] = useState(0);
-  const [visible, setVisible] = useState({ masthead: true, toolbox: true, cueSidebar: false, sidebar: false, inspector: true });
+  const [visible, setVisible] = useState({
+    masthead: true,
+    toolbox: true,
+    cueSidebar: false,
+    sidebar: false,
+    inspector: true,
+  });
   const [copied, setCopied] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [controlMenu, setControlMenu] = useState("");
-  const [starredLimit, setStarredLimit] = useState(defaultStarredCueTypes.length);
+  const [starredLimit, setStarredLimit] = useState(
+    defaultStarredCueTypes.length,
+  );
   const [starredOverflow, setStarredOverflow] = useState(false);
   const [starredContext, setStarredContext] = useState(null);
   const [cartSlot, setCartSlot] = useState(null);
-  const [devices, setDevices] = useState({ audioinput: [], videoinput: [], audiooutput: [], midioutput: [], screens: [] });
-  const [connections, setConnections] = useState({ microphone: "Not connected", camera: "Not connected", midi: "Not connected", serial: "Not connected" });
-  const fileRef = useRef(null), mediaRef = useRef(null), searchRef = useRef(null), starredAreaRef = useRef(null), workspaceHandle = useRef(null), workspaceDirectory = useRef(null), controllers = useRef(new Map()), preloaded = useRef(new Map()), midiRef = useRef(null), serialRef = useRef(null), lightStateRef = useRef({}), stageWindow = useRef(new Map()), wakeLock = useRef(null), channelRef = useRef(null), remoteChannelRef = useRef(null), suppressSync = useRef(false), hydrating = useRef(true), inspectorHashHandled = useRef(false), lastGo = useRef(0), goArmed = useRef(true), lastPanic = useRef(0), selectionAnchor = useRef(""), mtcRef = useRef({ parts: Array(8).fill(0), last: "" }), groupRandomRef = useRef(new Map()), duckedRef = useRef(new Map());
-  const historyRef = useRef([initial]), historyIndex = useRef(0), restoringHistory = useRef(false);
-  const [historyStatus, setHistoryStatus] = useState({ undo: false, redo: false });
-  const setStage = (update) => setStageLayers((layers) => { const current = Object.values(layers).at(-1) || null, next = typeof update === "function" ? update(current) : update; if (!next) return {}; return next.cueId ? { ...layers, [next.cueId]: next } : layers; });
-  const removeStage = (id) => setStageLayers((layers) => { const next = { ...layers }; delete next[id]; return next; });
-  const visualProps = (value) => ({ textColor: value.textColor, backgroundColor: value.backgroundColor, fontSize: value.fontSize, fontFamily: value.fontFamily, fontWeight: value.fontWeight, align: value.align, textWidth: value.textWidth, lineHeight: value.lineHeight, fit: value.fit, opacity: value.opacity, x: value.x, y: value.y, scale: value.scale, rotation: value.rotation, rotateX: value.rotateX, rotateY: value.rotateY, perspective: value.perspective, anchorX: value.anchorX, anchorY: value.anchorY, cropTop: value.cropTop, cropRight: value.cropRight, cropBottom: value.cropBottom, cropLeft: value.cropLeft, maskRadius: value.maskRadius, zIndex: value.zIndex, blendMode: value.blendMode, videoEffects: value.videoEffects, videoStage: value.videoStage });
+  const [devices, setDevices] = useState({
+    audioinput: [],
+    videoinput: [],
+    audiooutput: [],
+    midioutput: [],
+    screens: [],
+  });
+  const [connections, setConnections] = useState({
+    microphone: "Not connected",
+    camera: "Not connected",
+    midi: "Not connected",
+    serial: "Not connected",
+  });
+  const fileRef = useRef(null),
+    mediaRef = useRef(null),
+    searchRef = useRef(null),
+    starredAreaRef = useRef(null),
+    workspaceHandle = useRef(null),
+    workspaceDirectory = useRef(null),
+    controllers = useRef(new Map()),
+    preloaded = useRef(new Map()),
+    midiRef = useRef(null),
+    serialRef = useRef(null),
+    lightStateRef = useRef({}),
+    stageWindow = useRef(new Map()),
+    wakeLock = useRef(null),
+    channelRef = useRef(null),
+    remoteChannelRef = useRef(null),
+    suppressSync = useRef(false),
+    hydrating = useRef(true),
+    inspectorHashHandled = useRef(false),
+    lastGo = useRef(0),
+    goArmed = useRef(true),
+    lastPanic = useRef(0),
+    selectionAnchor = useRef(""),
+    mtcRef = useRef({ parts: Array(8).fill(0), last: "" }),
+    groupRandomRef = useRef(new Map()),
+    duckedRef = useRef(new Map());
+  const historyRef = useRef([initial]),
+    historyIndex = useRef(0),
+    restoringHistory = useRef(false);
+  const [historyStatus, setHistoryStatus] = useState({
+    undo: false,
+    redo: false,
+  });
+  const setStage = (update) =>
+    setStageLayers((layers) => {
+      const current = Object.values(layers).at(-1) || null,
+        next = typeof update === "function" ? update(current) : update;
+      if (!next) return {};
+      return next.cueId ? { ...layers, [next.cueId]: next } : layers;
+    });
+  const removeStage = (id) =>
+    setStageLayers((layers) => {
+      const next = { ...layers };
+      delete next[id];
+      return next;
+    });
+  const visualProps = (value) => ({
+    textColor: value.textColor,
+    backgroundColor: value.backgroundColor,
+    fontSize: value.fontSize,
+    fontFamily: value.fontFamily,
+    fontWeight: value.fontWeight,
+    align: value.align,
+    textWidth: value.textWidth,
+    lineHeight: value.lineHeight,
+    fit: value.fit,
+    opacity: value.opacity,
+    x: value.x,
+    y: value.y,
+    scale: value.scale,
+    rotation: value.rotation,
+    rotateX: value.rotateX,
+    rotateY: value.rotateY,
+    perspective: value.perspective,
+    anchorX: value.anchorX,
+    anchorY: value.anchorY,
+    cropTop: value.cropTop,
+    cropRight: value.cropRight,
+    cropBottom: value.cropBottom,
+    cropLeft: value.cropLeft,
+    maskRadius: value.maskRadius,
+    zIndex: value.zIndex,
+    blendMode: value.blendMode,
+    videoEffects: value.videoEffects,
+    videoStage: value.videoStage,
+  });
 
-  const list = workspace.lists.find((item) => item.id === workspace.currentList) || workspace.lists[0];
+  const list =
+    workspace.lists.find((item) => item.id === workspace.currentList) ||
+    workspace.lists[0];
   const cue = list.cues.find((item) => item.id === selected);
   const shownCues = visibleCues(list.cues);
   const playIndex = shownCues.findIndex((item) => item.id === playhead);
   const settings = workspace.settings || initial.settings;
-  const availableCueTypes = cueTypes.filter(([name]) => list.kind !== "cart" || name !== "Group");
+  const availableCueTypes = cueTypes.filter(
+    ([name]) => list.kind !== "cart" || name !== "Group",
+  );
   const starredCueTypes = settings.starredCueTypes || defaultStarredCueTypes;
-  const starredCueEntries = starredCueTypes.flatMap((starred) => availableCueTypes.filter(([name]) => name === starred));
-  const visibleStarredCues = starredCueEntries.slice(0, starredLimit), overflowStarredCues = starredCueEntries.slice(starredLimit);
-  const warnings = [...cueWarnings(workspace), ...Object.entries(runtimeWarnings).flatMap(([id, message]) => id === "workspace" ? [] : workspace.lists.flatMap((list) => list.cues.filter((cue) => cue.id === id).map((cue) => ({ cue, list, message }))))];
+  const starredCueEntries = starredCueTypes.flatMap((starred) =>
+    availableCueTypes.filter(([name]) => name === starred),
+  );
+  const visibleStarredCues = starredCueEntries.slice(0, starredLimit),
+    overflowStarredCues = starredCueEntries.slice(starredLimit);
+  const warnings = [
+    ...cueWarnings(workspace),
+    ...Object.entries(runtimeWarnings).flatMap(([id, message]) =>
+      id === "workspace"
+        ? []
+        : workspace.lists.flatMap((list) =>
+            list.cues
+              .filter((cue) => cue.id === id)
+              .map((cue) => ({ cue, list, message })),
+          ),
+    ),
+  ];
   const warningCount = warnings.length + (runtimeWarnings.workspace ? 1 : 0);
-  const warningByCue = Object.fromEntries(warnings.map((warning) => [warning.cue.id, warning.message]));
-  const searchMatches = search ? list.cues.filter((item) => [item.number, item.name, item.type, item.target, item.notes, item.fileName].some((value) => String(value || "").toLowerCase().includes(search.toLowerCase()))) : [];
+  const warningByCue = Object.fromEntries(
+    warnings.map((warning) => [warning.cue.id, warning.message]),
+  );
+  const searchMatches = search
+    ? list.cues.filter((item) =>
+        [
+          item.number,
+          item.name,
+          item.type,
+          item.target,
+          item.notes,
+          item.fileName,
+        ].some((value) =>
+          String(value || "")
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+        ),
+      )
+    : [];
 
   useEffect(() => {
-    const saved = localStorage.getItem("stagecue-workspace");
-    if (saved) try {
-      const value = JSON.parse(saved);
-      queueMicrotask(() => setWorkspace(normalizeWorkspace(value)));
-    } catch {}
+    const saved = localStorage.getItem("webcue-workspace");
+    if (saved)
+      try {
+        const value = JSON.parse(saved);
+        queueMicrotask(() => setWorkspace(normalizeWorkspace(value)));
+      } catch {}
   }, []);
-  useEffect(() => { if (inspectorHashHandled.current) return; const id = location.hash.match(/^#inspector=(.+)$/)?.[1], owner = id && workspace.lists.find((item) => item.cues.some((cue) => cue.id === id)); if (!owner) return; inspectorHashHandled.current = true; queueMicrotask(() => { setWorkspace((state) => ({ ...state, currentList: owner.id })); setSelected(id); setSelectedIds([id]); setPlayhead(id); setVisible({ masthead: false, toolbox: false, cueSidebar: false, sidebar: false, inspector: true }); }); }, [workspace.lists]);
-  useEffect(() => { if (hydrating.current) { hydrating.current = false; return; } try { localStorage.setItem("stagecue-workspace", JSON.stringify(workspace)); } catch { queueMicrotask(() => fail("Workspace metadata could not be saved locally. Export the workspace to preserve it.")); } }, [workspace]);
   useEffect(() => {
-    if (restoringHistory.current) { restoringHistory.current = false; return; }
-    if (JSON.stringify(historyRef.current[historyIndex.current]) === JSON.stringify(workspace)) return;
-    historyRef.current = [...historyRef.current.slice(0, historyIndex.current + 1), structuredClone(workspace)].slice(-100); historyIndex.current = historyRef.current.length - 1; queueMicrotask(() => setHistoryStatus({ undo: historyIndex.current > 0, redo: false }));
+    if (inspectorHashHandled.current) return;
+    const id = location.hash.match(/^#inspector=(.+)$/)?.[1],
+      owner =
+        id &&
+        workspace.lists.find((item) => item.cues.some((cue) => cue.id === id));
+    if (!owner) return;
+    inspectorHashHandled.current = true;
+    queueMicrotask(() => {
+      setWorkspace((state) => ({ ...state, currentList: owner.id }));
+      setSelected(id);
+      setSelectedIds([id]);
+      setPlayhead(id);
+      setVisible({
+        masthead: false,
+        toolbox: false,
+        cueSidebar: false,
+        sidebar: false,
+        inspector: true,
+      });
+    });
+  }, [workspace.lists]);
+  useEffect(() => {
+    if (hydrating.current) {
+      hydrating.current = false;
+      return;
+    }
+    try {
+      localStorage.setItem("webcue-workspace", JSON.stringify(workspace));
+    } catch {
+      queueMicrotask(() =>
+        fail(
+          "Workspace metadata could not be saved locally. Export the workspace to preserve it.",
+        ),
+      );
+    }
+  }, [workspace]);
+  useEffect(() => {
+    if (restoringHistory.current) {
+      restoringHistory.current = false;
+      return;
+    }
+    if (
+      JSON.stringify(historyRef.current[historyIndex.current]) ===
+      JSON.stringify(workspace)
+    )
+      return;
+    historyRef.current = [
+      ...historyRef.current.slice(0, historyIndex.current + 1),
+      structuredClone(workspace),
+    ].slice(-100);
+    historyIndex.current = historyRef.current.length - 1;
+    queueMicrotask(() =>
+      setHistoryStatus({ undo: historyIndex.current > 0, redo: false }),
+    );
   }, [workspace]);
   useEffect(() => {
     if (!settings.collaboration || !("BroadcastChannel" in window)) return;
-    const channel = new BroadcastChannel("stagecue-workspace"); channelRef.current = channel;
-    channel.onmessage = (event) => { suppressSync.current = true; setWorkspace(event.data); };
+    const channel = new BroadcastChannel("webcue-workspace");
+    channelRef.current = channel;
+    channel.onmessage = (event) => {
+      suppressSync.current = true;
+      setWorkspace(event.data);
+    };
     return () => channel.close();
   }, [settings.collaboration]);
-  useEffect(() => { if (!suppressSync.current) channelRef.current?.postMessage(workspace); }, [workspace]);
-  useEffect(() => { const node = starredAreaRef.current; if (!node) return; const resize = () => { const capacity = Math.floor((node.clientWidth + 4) / 42); setStarredLimit(capacity < starredCueEntries.length ? Math.max(0, capacity - 1) : starredCueEntries.length); }; const observer = new ResizeObserver(resize); observer.observe(node); resize(); return () => observer.disconnect(); }, [starredCueEntries.length]);
+  useEffect(() => {
+    if (!suppressSync.current) channelRef.current?.postMessage(workspace);
+  }, [workspace]);
+  useEffect(() => {
+    const node = starredAreaRef.current;
+    if (!node) return;
+    const resize = () => {
+      const capacity = Math.floor((node.clientWidth + 4) / 42);
+      setStarredLimit(
+        capacity < starredCueEntries.length
+          ? Math.max(0, capacity - 1)
+          : starredCueEntries.length,
+      );
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(node);
+    resize();
+    return () => observer.disconnect();
+  }, [starredCueEntries.length]);
   useEffect(() => {
     if (mode !== "show" || !("wakeLock" in navigator)) return;
-    (navigator as any).wakeLock.request("screen").then((lock) => wakeLock.current = lock).catch(() => {});
-    return () => { wakeLock.current?.release(); wakeLock.current = null; };
+    (navigator as any).wakeLock
+      .request("screen")
+      .then((lock) => (wakeLock.current = lock))
+      .catch(() => {});
+    return () => {
+      wakeLock.current?.release();
+      wakeLock.current = null;
+    };
   }, [mode]);
-  useEffect(() => { if (mode !== "show") return; const confirmClose = (event) => event.preventDefault(); addEventListener("beforeunload", confirmClose); return () => removeEventListener("beforeunload", confirmClose); }, [mode]);
-  useEffect(() => { if (searchOpen) requestAnimationFrame(() => searchRef.current?.focus()); }, [searchOpen]);
-  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 3000); return () => clearTimeout(timer); }, [notice]);
+  useEffect(() => {
+    if (mode !== "show") return;
+    const confirmClose = (event) => event.preventDefault();
+    addEventListener("beforeunload", confirmClose);
+    return () => removeEventListener("beforeunload", confirmClose);
+  }, [mode]);
+  useEffect(() => {
+    if (searchOpen) requestAnimationFrame(() => searchRef.current?.focus());
+  }, [searchOpen]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 3000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     if (cue?.type !== "Audio" || !cue.fileKey || cue.waveform?.length) return;
     let cancelled = false;
-    loadFile(cue.fileKey).then(async (file) => { if (!file) return; const analysis = await analyzeAudio(file); if (!cancelled) setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => ({ ...item, cues: item.cues.map((value) => value.id === cue.id ? { ...value, duration: analysis.duration, trimEnd: value.trimEnd || analysis.duration, sourceChannels: analysis.channels, waveform: analysis.waveform, audioRoutes: value.audioRoutes?.length ? value.audioRoutes : Array.from({ length: analysis.channels }, (_, index) => [index + 1]) } : value) })) })); }).catch(fail);
-    return () => { cancelled = true; };
+    loadFile(cue.fileKey)
+      .then(async (file) => {
+        if (!file) return;
+        const analysis = await analyzeAudio(file);
+        if (!cancelled)
+          setWorkspace((state) => ({
+            ...state,
+            lists: state.lists.map((item) => ({
+              ...item,
+              cues: item.cues.map((value) =>
+                value.id === cue.id
+                  ? {
+                      ...value,
+                      duration: analysis.duration,
+                      trimEnd: value.trimEnd || analysis.duration,
+                      sourceChannels: analysis.channels,
+                      waveform: analysis.waveform,
+                      audioRoutes: value.audioRoutes?.length
+                        ? value.audioRoutes
+                        : Array.from(
+                            { length: analysis.channels },
+                            (_, index) => [index + 1],
+                          ),
+                    }
+                  : value,
+              ),
+            })),
+          }));
+      })
+      .catch(fail);
+    return () => {
+      cancelled = true;
+    };
   }, [cue?.id, cue?.fileKey]);
   useEffect(() => {
     let cancelled = false;
-    for (const value of workspace.lists.flatMap((item) => item.cues).filter((item) => item.autoLoad && item.fileKey && ["Audio", "Video"].includes(item.type) && !preloaded.current.has(item.id))) loadFile(value.fileKey).then((file) => { if (!file || cancelled) return; if (value.type === "Audio") preloaded.current.set(value.id, { file }); else { const url = URL.createObjectURL(file), media = document.createElement("video"); media.preload = "auto"; media.src = url; media.load(); preloaded.current.set(value.id, { media, url }); } }).catch(fail);
-    return () => { cancelled = true; };
+    for (const value of workspace.lists
+      .flatMap((item) => item.cues)
+      .filter(
+        (item) =>
+          item.autoLoad &&
+          item.fileKey &&
+          ["Audio", "Video"].includes(item.type) &&
+          !preloaded.current.has(item.id),
+      ))
+      loadFile(value.fileKey)
+        .then((file) => {
+          if (!file || cancelled) return;
+          if (value.type === "Audio") preloaded.current.set(value.id, { file });
+          else {
+            const url = URL.createObjectURL(file),
+              media = document.createElement("video");
+            media.preload = "auto";
+            media.src = url;
+            media.load();
+            preloaded.current.set(value.id, { media, url });
+          }
+        })
+        .catch(fail);
+    return () => {
+      cancelled = true;
+    };
   }, [workspace]);
   useEffect(() => {
-    if (!settings.collaborationRemote) { remoteChannelRef.current?.close(); remoteChannelRef.current = null; return; }
-    const url = settings.collaborationUrl || `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/collaboration`, socket = collaborationSocket(url, settings.collaborationRoom, (value) => { suppressSync.current = true; setWorkspace(normalizeWorkspace(value)); }); remoteChannelRef.current = socket;
+    if (!settings.collaborationRemote) {
+      remoteChannelRef.current?.close();
+      remoteChannelRef.current = null;
+      return;
+    }
+    const url =
+        settings.collaborationUrl ||
+        `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/collaboration`,
+      socket = collaborationSocket(url, settings.collaborationRoom, (value) => {
+        suppressSync.current = true;
+        setWorkspace(normalizeWorkspace(value));
+      });
+    remoteChannelRef.current = socket;
     socket.onerror = () => fail("Remote collaboration could not connect.");
-    return () => { socket.close(); if (remoteChannelRef.current === socket) remoteChannelRef.current = null; };
-  }, [settings.collaborationRemote, settings.collaborationUrl, settings.collaborationRoom]);
-  useEffect(() => { if (!suppressSync.current && remoteChannelRef.current?.readyState === WebSocket.OPEN) remoteChannelRef.current.send(JSON.stringify(workspace)); }, [workspace]);
-  useEffect(() => { if (suppressSync.current) queueMicrotask(() => suppressSync.current = false); }, [workspace]);
+    return () => {
+      socket.close();
+      if (remoteChannelRef.current === socket) remoteChannelRef.current = null;
+    };
+  }, [
+    settings.collaborationRemote,
+    settings.collaborationUrl,
+    settings.collaborationRoom,
+  ]);
+  useEffect(() => {
+    if (
+      !suppressSync.current &&
+      remoteChannelRef.current?.readyState === WebSocket.OPEN
+    )
+      remoteChannelRef.current.send(JSON.stringify(workspace));
+  }, [workspace]);
+  useEffect(() => {
+    if (suppressSync.current)
+      queueMicrotask(() => (suppressSync.current = false));
+  }, [workspace]);
 
   const allCues = () => workspace.lists.flatMap((item) => item.cues);
-  const relatedIds = highlightRelated && cue ? allCues().filter((item) => item.id === cue.id || item.number === cue.target || item.target === cue.number || item.parentId === cue.id || item.id === cue.parentId).map((item) => item.id) : [];
-  const selectedCueValues = () => { const ids = new Set(selectedIds); for (const value of list.cues.filter((cue) => ids.has(cue.id) && cue.type === "Group")) descendantsOf(list.cues, value.id).forEach((cue) => ids.add(cue.id)); return list.cues.filter((cue) => ids.has(cue.id)); };
-  const findCue = (number) => allCues().find((item) => item.number === String(number));
-  const audioPatch = (value) => settings.audioPatches.find((patch) => patch.id === value.audioPatch) || settings.audioPatches[0];
-  const midiOutput = (value) => { const patch = settings.midiPatches.find((item) => item.id === value.midiPatch), id = patch?.deviceId || settings.midiOutput; return id ? midiRef.current?.outputs.get(id) : [...(midiRef.current?.outputs.values() || [])][0]; };
-  const log = (kind, message, cueId = "") => setLogs((items) => [{ id: uid(), at: new Date().toLocaleTimeString(), kind, message, cueId }, ...items].slice(0, 500));
-  const patchCueById = (id, patch) => setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => ({ ...item, cues: item.cues.map((value) => value.id === id ? { ...value, ...patch } : value) })) }));
-  const fail = (error, cueId = "") => { const message = error instanceof Error ? error.message : String(error); setRuntimeWarnings((items) => ({ ...items, [cueId || "workspace"]: message })); log("error", message, cueId); };
+  const relatedIds =
+    highlightRelated && cue
+      ? allCues()
+          .filter(
+            (item) =>
+              item.id === cue.id ||
+              item.number === cue.target ||
+              item.target === cue.number ||
+              item.parentId === cue.id ||
+              item.id === cue.parentId,
+          )
+          .map((item) => item.id)
+      : [];
+  const selectedCueValues = () => {
+    const ids = new Set(selectedIds);
+    for (const value of list.cues.filter(
+      (cue) => ids.has(cue.id) && cue.type === "Group",
+    ))
+      descendantsOf(list.cues, value.id).forEach((cue) => ids.add(cue.id));
+    return list.cues.filter((cue) => ids.has(cue.id));
+  };
+  const findCue = (number) =>
+    allCues().find((item) => item.number === String(number));
+  const audioPatch = (value) =>
+    settings.audioPatches.find((patch) => patch.id === value.audioPatch) ||
+    settings.audioPatches[0];
+  const midiOutput = (value) => {
+    const patch = settings.midiPatches.find(
+        (item) => item.id === value.midiPatch,
+      ),
+      id = patch?.deviceId || settings.midiOutput;
+    return id
+      ? midiRef.current?.outputs.get(id)
+      : [...(midiRef.current?.outputs.values() || [])][0];
+  };
+  const log = (kind, message, cueId = "") =>
+    setLogs((items) =>
+      [
+        {
+          id: uid(),
+          at: new Date().toLocaleTimeString(),
+          kind,
+          message,
+          cueId,
+        },
+        ...items,
+      ].slice(0, 500),
+    );
+  const patchCueById = (id, patch) =>
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => ({
+        ...item,
+        cues: item.cues.map((value) =>
+          value.id === id ? { ...value, ...patch } : value,
+        ),
+      })),
+    }));
+  const fail = (error, cueId = "") => {
+    const message = error instanceof Error ? error.message : String(error);
+    setRuntimeWarnings((items) => ({
+      ...items,
+      [cueId || "workspace"]: message,
+    }));
+    log("error", message, cueId);
+  };
   const patchCue = (patch) => {
     if (!cue) return;
-    if (Object.hasOwn(patch, "number") && patch.number && allCues().some((item) => item.id !== cue.id && item.number === patch.number)) return fail(`Cue number ${patch.number} is already in use.`);
+    if (
+      Object.hasOwn(patch, "number") &&
+      patch.number &&
+      allCues().some(
+        (item) => item.id !== cue.id && item.number === patch.number,
+      )
+    )
+      return fail(`Cue number ${patch.number} is already in use.`);
     const ids = selectedIds.length ? selectedIds : [cue.id];
-    setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => ({ ...item, cues: item.cues.map((value) => ids.includes(value.id) ? { ...value, ...patch, ...(Object.hasOwn(patch, "number") && value.id !== cue.id ? { number: value.number } : {}) } : value) })) }));
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => ({
+        ...item,
+        cues: item.cues.map((value) =>
+          ids.includes(value.id)
+            ? {
+                ...value,
+                ...patch,
+                ...(Object.hasOwn(patch, "number") && value.id !== cue.id
+                  ? { number: value.number }
+                  : {}),
+              }
+            : value,
+        ),
+      })),
+    }));
   };
-  const patchCueAndPreview = (patch) => { patchCue(patch); if (!liveFadePreview || cue?.type !== "Fade") return; const draft = { ...cue, ...patch }, target = findCue(draft.target), control = target && controllers.current.get(target.id); if (!control) return; Object.entries(draft.fadeParameters || {}).filter(([, enabled]) => enabled).forEach(([key]) => control.setParameter?.(key, draft.fadeValues?.[key] ?? draft[key])); };
+  const patchCueAndPreview = (patch) => {
+    patchCue(patch);
+    if (!liveFadePreview || cue?.type !== "Fade") return;
+    const draft = { ...cue, ...patch },
+      target = findCue(draft.target),
+      control = target && controllers.current.get(target.id);
+    if (!control) return;
+    Object.entries(draft.fadeParameters || {})
+      .filter(([, enabled]) => enabled)
+      .forEach(([key]) =>
+        control.setParameter?.(key, draft.fadeValues?.[key] ?? draft[key]),
+      );
+  };
   const selectCue = (id, event) => {
     const nextCue = list.cues.find((item) => item.id === id);
     let ids;
     if (event?.shiftKey && selectionAnchor.current) {
-      const a = list.cues.findIndex((item) => item.id === selectionAnchor.current), b = list.cues.findIndex((item) => item.id === id);
-      ids = list.cues.slice(Math.min(a, b), Math.max(a, b) + 1).map((item) => item.id);
+      const a = list.cues.findIndex(
+          (item) => item.id === selectionAnchor.current,
+        ),
+        b = list.cues.findIndex((item) => item.id === id);
+      ids = list.cues
+        .slice(Math.min(a, b), Math.max(a, b) + 1)
+        .map((item) => item.id);
     } else if (event?.metaKey || event?.ctrlKey) {
-      ids = selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id];
+      ids = selectedIds.includes(id)
+        ? selectedIds.filter((item) => item !== id)
+        : [...selectedIds, id];
       selectionAnchor.current = id;
-    } else { ids = [id]; selectionAnchor.current = id; }
+    } else {
+      ids = [id];
+      selectionAnchor.current = id;
+    }
     const primary = ids.includes(id) ? id : ids.at(-1) || "";
-    setSelectedIds(ids); setSelected(primary); setPlayhead(primary);
+    setSelectedIds(ids);
+    setSelected(primary);
+    setPlayhead(primary);
     const primaryCue = list.cues.find((item) => item.id === primary) || nextCue;
-    if (primaryCue && !tabsForCue(primaryCue).includes(inspectorTab)) setInspectorTab("Basics");
+    if (primaryCue && !tabsForCue(primaryCue).includes(inspectorTab))
+      setInspectorTab("Basics");
   };
-  const clearSelection = () => { setSelected(""); setSelectedIds([]); setPlayhead(""); setCartSlot(null); selectionAnchor.current = ""; };
-  const resizeInspector = (event) => { event.preventDefault(); const inspector = document.querySelector(".inspector"), work = document.querySelector(".work-area"); if (!inspector || !work) return; const startY = event.clientY, startHeight = inspector.getBoundingClientRect().height, max = startHeight + work.getBoundingClientRect().height - 120; document.documentElement.style.cursor = "row-resize"; const move = (next) => setInspectorHeight(Math.max(120, Math.min(max, startHeight + startY - next.clientY))), stop = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", stop); document.documentElement.style.cursor = ""; }; addEventListener("pointermove", move); addEventListener("pointerup", stop, { once: true }); };
-  const patchSettings = (patch) => setWorkspace((state) => ({ ...state, settings: { ...state.settings, ...patch } }));
-  const nextCueNumber = () => { if (!settings.autoNumber) return ""; const increment = Math.max(1, settings.increment), last = Number(list.cues.at(-1)?.number); let number = Number.isFinite(last) ? last + increment : increment; while (findCue(number)) number += increment; return String(number); };
+  const clearSelection = () => {
+    setSelected("");
+    setSelectedIds([]);
+    setPlayhead("");
+    setCartSlot(null);
+    selectionAnchor.current = "";
+  };
+  const resizeInspector = (event) => {
+    event.preventDefault();
+    const inspector = document.querySelector(".inspector"),
+      work = document.querySelector(".work-area");
+    if (!inspector || !work) return;
+    const startY = event.clientY,
+      startHeight = inspector.getBoundingClientRect().height,
+      max = startHeight + work.getBoundingClientRect().height - 120;
+    document.documentElement.style.cursor = "row-resize";
+    const move = (next) =>
+        setInspectorHeight(
+          Math.max(120, Math.min(max, startHeight + startY - next.clientY)),
+        ),
+      stop = () => {
+        removeEventListener("pointermove", move);
+        removeEventListener("pointerup", stop);
+        document.documentElement.style.cursor = "";
+      };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", stop, { once: true });
+  };
+  const patchSettings = (patch) =>
+    setWorkspace((state) => ({
+      ...state,
+      settings: { ...state.settings, ...patch },
+    }));
+  const nextCueNumber = () => {
+    if (!settings.autoNumber) return "";
+    const increment = Math.max(1, settings.increment),
+      last = Number(list.cues.at(-1)?.number);
+    let number = Number.isFinite(last) ? last + increment : increment;
+    while (findCue(number)) number += increment;
+    return String(number);
+  };
   const refreshDevices = async () => {
     const media = await navigator.mediaDevices.enumerateDevices();
     const midi = midiRef.current ? [...midiRef.current.outputs.values()] : [];
-    setDevices((value) => ({ ...value, audioinput: media.filter((item) => item.kind === "audioinput"), videoinput: media.filter((item) => item.kind === "videoinput"), audiooutput: media.filter((item) => item.kind === "audiooutput"), midioutput: midi }));
+    setDevices((value) => ({
+      ...value,
+      audioinput: media.filter((item) => item.kind === "audioinput"),
+      videoinput: media.filter((item) => item.kind === "videoinput"),
+      audiooutput: media.filter((item) => item.kind === "audiooutput"),
+      midioutput: midi,
+    }));
   };
-  const requestScreens = async () => { try { if (!("getScreenDetails" in window)) throw new Error("Window Management is unavailable in this Chromium build."); const details = await (window as any).getScreenDetails(); setDevices((value) => ({ ...value, screens: [...details.screens] })); } catch (error) { fail(error); } };
+  const requestScreens = async () => {
+    try {
+      if (!("getScreenDetails" in window))
+        throw new Error(
+          "Window Management is unavailable in this Chromium build.",
+        );
+      const details = await (window as any).getScreenDetails();
+      setDevices((value) => ({ ...value, screens: [...details.screens] }));
+    } catch (error) {
+      fail(error);
+    }
+  };
   const connect = async (kind) => {
     try {
-      if (kind === "midi" && midiRef.current) { midiRef.current.inputs.forEach((input) => input.onmidimessage = null); midiRef.current = null; setDevices((value) => ({ ...value, midioutput: [] })); setConnections((value) => ({ ...value, midi: "Not connected" })); return; }
-      if (kind === "serial" && serialRef.current) { await serialRef.current.close(); serialRef.current = null; setConnections((value) => ({ ...value, serial: "Not connected" })); return; }
+      if (kind === "midi" && midiRef.current) {
+        midiRef.current.inputs.forEach((input) => (input.onmidimessage = null));
+        midiRef.current = null;
+        setDevices((value) => ({ ...value, midioutput: [] }));
+        setConnections((value) => ({ ...value, midi: "Not connected" }));
+        return;
+      }
+      if (kind === "serial" && serialRef.current) {
+        await serialRef.current.close();
+        serialRef.current = null;
+        setConnections((value) => ({ ...value, serial: "Not connected" }));
+        return;
+      }
       if (kind === "microphone" || kind === "camera") {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: kind === "microphone", video: kind === "camera" });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: kind === "microphone",
+          video: kind === "camera",
+        });
         stream.getTracks().forEach((track) => track.stop());
         setConnections((value) => ({ ...value, [kind]: "Permission granted" }));
       }
-      if (kind === "midi") { midiRef.current = await requestMidi(); setConnections((value) => ({ ...value, midi: `${midiRef.current.outputs.size} outputs` })); }
-      if (kind === "serial") { serialRef.current = await requestSerial(settings.baudRate); setConnections((value) => ({ ...value, serial: "Connected" })); }
+      if (kind === "midi") {
+        midiRef.current = await requestMidi();
+        setConnections((value) => ({
+          ...value,
+          midi: `${midiRef.current.outputs.size} outputs`,
+        }));
+      }
+      if (kind === "serial") {
+        serialRef.current = await requestSerial(settings.baudRate);
+        setConnections((value) => ({ ...value, serial: "Connected" }));
+      }
       await refreshDevices();
-    } catch (error) { setConnections((value) => ({ ...value, [kind]: "Failed" })); fail(error); }
+    } catch (error) {
+      setConnections((value) => ({ ...value, [kind]: "Failed" }));
+      fail(error);
+    }
   };
   const openStage = (stageId = "default") => {
-    const id = typeof stageId === "string" ? stageId : "default", stage = settings.videoStages.find((item) => item.id === id) || settings.videoStages[0], screen = devices.screens.find((item) => item.label === stage?.screen), features = screen ? `popup,left=${screen.left},top=${screen.top},width=${screen.width},height=${screen.height}` : "popup,width=1280,height=720", url = `/stage-output?stage=${encodeURIComponent(id)}&name=${encodeURIComponent(stage?.name || "Stage Output")}`, output = window.open(url, `stagecue-stage-${id}`, features);
-    if (!output) return fail("The stage output was blocked. Allow popups for this site and try again.");
-    stageWindow.current.set(id, output); output.addEventListener("load", () => setStageLayers((layers) => ({ ...layers })), { once: true }); setStageLayers((layers) => ({ ...layers }));
-    setRuntimeWarnings((items) => { if (!items.workspace) return items; const next = { ...items }; delete next.workspace; return next; });
+    const id = typeof stageId === "string" ? stageId : "default",
+      stage =
+        settings.videoStages.find((item) => item.id === id) ||
+        settings.videoStages[0],
+      screen = devices.screens.find((item) => item.label === stage?.screen),
+      features = screen
+        ? `popup,left=${screen.left},top=${screen.top},width=${screen.width},height=${screen.height}`
+        : "popup,width=1280,height=720",
+      url = `/stage-output?stage=${encodeURIComponent(id)}&name=${encodeURIComponent(stage?.name || "Stage Output")}`,
+      output = window.open(url, `webcue-stage-${id}`, features);
+    if (!output)
+      return fail(
+        "The stage output was blocked. Allow popups for this site and try again.",
+      );
+    stageWindow.current.set(id, output);
+    output.addEventListener(
+      "load",
+      () => setStageLayers((layers) => ({ ...layers })),
+      { once: true },
+    );
+    setStageLayers((layers) => ({ ...layers }));
+    setRuntimeWarnings((items) => {
+      if (!items.workspace) return items;
+      const next = { ...items };
+      delete next.workspace;
+      return next;
+    });
   };
   const openWorkspaceWindow = () => {
-    const popup = window.open("about:blank", `stagecue-workspace-${uid()}`, "popup,width=1280,height=850");
-    if (!popup) return fail("The workspace window was blocked. Allow popups and try again.");
+    const popup = window.open(
+      "about:blank",
+      `webcue-workspace-${uid()}`,
+      "popup,width=1280,height=850",
+    );
+    if (!popup)
+      return fail(
+        "The workspace window was blocked. Allow popups and try again.",
+      );
     const frame = popup.document.createElement("iframe");
-    frame.src = location.href; frame.title = "StageCue Workspace"; frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0";
-    frame.onload = () => { const style = frame.contentDocument.createElement("style"); style.textContent = ".menu-bar,.toolbox,.inspector{display:none!important}.app{grid-template-rows:auto minmax(0,1fr) 34px!important}.masthead{grid-row:1!important}.work-area{grid-row:2!important}footer{grid-row:3!important}"; frame.contentDocument.head.append(style); popup.document.title = `${workspace.name} - ${list.name}`; };
-    popup.document.body.style.margin = "0"; popup.document.body.append(frame);
+    frame.src = location.href;
+    frame.title = "WebCue Workspace";
+    frame.style.cssText =
+      "position:fixed;inset:0;width:100%;height:100%;border:0";
+    frame.onload = () => {
+      const style = frame.contentDocument.createElement("style");
+      style.textContent =
+        ".menu-bar,.toolbox,.inspector{display:none!important}.app{grid-template-rows:auto minmax(0,1fr) 34px!important}.masthead{grid-row:1!important}.work-area{grid-row:2!important}footer{grid-row:3!important}";
+      frame.contentDocument.head.append(style);
+      popup.document.title = `${workspace.name} - ${list.name}`;
+    };
+    popup.document.body.style.margin = "0";
+    popup.document.body.append(frame);
   };
   useEffect(() => {
     for (const [stageId, output] of stageWindow.current) {
-      if (output.closed) { stageWindow.current.delete(stageId); continue; }
-      let root; try { root = output.document.getElementById("stage-layers"); } catch { continue; } if (!root) continue;
-      const shown = Object.values(stageLayers).filter((layer) => (layer.videoStage || "default") === stageId), ids = new Set(shown.map((layer) => layer.cueId));
-      root.querySelectorAll("[data-cue]").forEach((node) => { if (!ids.has(node.dataset.cue)) { node._fxCleanup?.(); node.remove(); } });
-      for (const layer of shown.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))) {
+      if (output.closed) {
+        stageWindow.current.delete(stageId);
+        continue;
+      }
+      let root;
+      try {
+        root = output.document.getElementById("stage-layers");
+      } catch {
+        continue;
+      }
+      if (!root) continue;
+      const shown = Object.values(stageLayers).filter(
+          (layer) => (layer.videoStage || "default") === stageId,
+        ),
+        ids = new Set(shown.map((layer) => layer.cueId));
+      root.querySelectorAll("[data-cue]").forEach((node) => {
+        if (!ids.has(node.dataset.cue)) {
+          node._fxCleanup?.();
+          node.remove();
+        }
+      });
+      for (const layer of shown.sort(
+        (a, b) => (a.zIndex || 0) - (b.zIndex || 0),
+      )) {
         let node = root.querySelector(`[data-cue="${layer.cueId}"]`);
-        if (!node) { node = output.document.createElement("div"); node.dataset.cue = layer.cueId; root.append(node); }
+        if (!node) {
+          node = output.document.createElement("div");
+          node.dataset.cue = layer.cueId;
+          root.append(node);
+        }
         node.style.cssText = `position:absolute;inset:${layer.cropTop || 0}% ${layer.cropRight || 0}% ${layer.cropBottom || 0}% ${layer.cropLeft || 0}%;display:grid;place-items:center;overflow:hidden;background:${layer.backgroundColor || "transparent"};color:${layer.textColor || "#fff"};font:${layer.fontWeight || 700} ${layer.fontSize || 96}px/${layer.lineHeight || 1.2} ${layer.fontFamily || "system-ui"};text-align:${layer.align || "center"};opacity:${layer.panicking ? 0 : (layer.opacity ?? 100) / 100};transform-origin:${layer.anchorX || 50}% ${layer.anchorY || 50}%;transform:perspective(${layer.perspective || 1000}px) translate(${layer.x || 0}px,${layer.y || 0}px) scale(${(layer.scale || 100) / 100}) rotate(${layer.rotation || 0}deg) rotateX(${layer.rotateX || 0}deg) rotateY(${layer.rotateY || 0}deg);z-index:${layer.zIndex || 0};mix-blend-mode:${layer.blendMode || "normal"};border-radius:${layer.maskRadius || 0}%;transition:opacity ${layer.panicDuration || 0}s linear`;
-        if (["text", "timecode"].includes(layer.type)) { node.style.padding = "2%"; node.style.boxSizing = "border-box"; node.style.width = `${layer.textWidth || 100}%`; if (layer.type === "text") node.innerHTML = sanitizeRichText(layer.html || layer.content); else node.textContent = layer.content; }
-        else { let media = node.querySelector("video"); if (!media) { media = output.document.createElement("video"); media.autoplay = true; media.muted = true; media.playsInline = true; media.style.cssText = "width:100%;height:100%"; node.append(media); } media.loop = layer.loops === 0; media.playbackRate = (layer.rate || 100) / 100; media.preservesPitch = Boolean(layer.preservePitch); media.style.objectFit = layer.fit || "contain"; media.style.filter = visualFilter(layer.videoEffects); if (layer.stream && media.srcObject !== layer.stream) media.srcObject = layer.stream; else if (layer.content && media.src !== layer.content) { media.src = layer.content; media.currentTime = layer.trimStart || 0; } media.play().catch(() => {}); const gpu = (layer.videoEffects || []).some((effect) => effect.enabled !== false && ["brightness", "contrast", "saturate", "hue-rotate"].includes(effect.type)); if (gpu && !node.querySelector("canvas")) { const canvas = output.document.createElement("canvas"); canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:inherit"; node.append(canvas); media.style.visibility = "hidden"; node._fxCleanup = startVideoFx(canvas, media, layer.videoEffects); } }
+        if (["text", "timecode"].includes(layer.type)) {
+          node.style.padding = "2%";
+          node.style.boxSizing = "border-box";
+          node.style.width = `${layer.textWidth || 100}%`;
+          if (layer.type === "text")
+            node.innerHTML = sanitizeRichText(layer.html || layer.content);
+          else node.textContent = layer.content;
+        } else {
+          let media = node.querySelector("video");
+          if (!media) {
+            media = output.document.createElement("video");
+            media.autoplay = true;
+            media.muted = true;
+            media.playsInline = true;
+            media.style.cssText = "width:100%;height:100%";
+            node.append(media);
+          }
+          media.loop = layer.loops === 0;
+          media.playbackRate = (layer.rate || 100) / 100;
+          media.preservesPitch = Boolean(layer.preservePitch);
+          media.style.objectFit = layer.fit || "contain";
+          media.style.filter = visualFilter(layer.videoEffects);
+          if (layer.stream && media.srcObject !== layer.stream)
+            media.srcObject = layer.stream;
+          else if (layer.content && media.src !== layer.content) {
+            media.src = layer.content;
+            media.currentTime = layer.trimStart || 0;
+          }
+          media.play().catch(() => {});
+          const gpu = (layer.videoEffects || []).some(
+            (effect) =>
+              effect.enabled !== false &&
+              ["brightness", "contrast", "saturate", "hue-rotate"].includes(
+                effect.type,
+              ),
+          );
+          if (gpu && !node.querySelector("canvas")) {
+            const canvas = output.document.createElement("canvas");
+            canvas.style.cssText =
+              "position:absolute;inset:0;width:100%;height:100%;object-fit:inherit";
+            node.append(canvas);
+            media.style.visibility = "hidden";
+            node._fxCleanup = startVideoFx(canvas, media, layer.videoEffects);
+          }
+        }
       }
     }
   }, [stageLayers]);
@@ -294,435 +1466,7058 @@ export default function Home() {
   const finishCue = (value, follow = true) => {
     setActive((items) => items.filter((id) => id !== value.id));
     setPaused((items) => items.filter((id) => id !== value.id));
-    setRemaining((items) => { const next = { ...items }; delete next[value.id]; return next; });
+    setRemaining((items) => {
+      const next = { ...items };
+      delete next[value.id];
+      return next;
+    });
     controllers.current.delete(value.id);
     removeStage(value.id);
-    const ducked = duckedRef.current.get(value.id); if (ducked) { ducked.forEach((level, id) => controllers.current.get(id)?.setVolume?.(level)); duckedRef.current.delete(value.id); }
-    if (follow && value.continueMode === "Auto follow") { const next = nextSibling(list.cues, value); if (next) { selectCue(next.id, null); runCue(next); } }
+    const ducked = duckedRef.current.get(value.id);
+    if (ducked) {
+      ducked.forEach((level, id) =>
+        controllers.current.get(id)?.setVolume?.(level),
+      );
+      duckedRef.current.delete(value.id);
+    }
+    if (follow && value.continueMode === "Auto follow") {
+      const next = nextSibling(list.cues, value);
+      if (next) {
+        selectCue(next.id, null);
+        runCue(next);
+      }
+    }
   };
   const stopCue = (id) => {
-    const control = controllers.current.get(id); if (!control) return; control.stop?.(true);
-    const value = allCues().find((item) => item.id === id); if (value) finishCue(value, false);
+    const control = controllers.current.get(id);
+    if (!control) return;
+    control.stop?.(true);
+    const value = allCues().find((item) => item.id === id);
+    if (value) finishCue(value, false);
   };
-  const stopAll = () => { [...controllers.current.keys()].forEach(stopCue); preloaded.current.forEach((item) => { if (item.url) URL.revokeObjectURL(item.url); }); preloaded.current.clear(); setActive([]); setPaused([]); setRemaining({}); setStageLayers({}); };
-  const resetAll = () => { stopAll(); const first = list.cues[0]?.id || ""; setPlayhead(first); setSelected(first); setSelectedIds(first ? [first] : []); };
-  const panicAll = () => { const duration = Math.max(0, settings.panicDuration); if (!duration) return stopAll(); const started = performance.now(), levels = new Map([...controllers.current].map(([id, control]) => [id, control.currentVolume ?? 1])); setStageLayers((layers) => Object.fromEntries(Object.entries(layers).map(([id, layer]) => [id, { ...layer, panicking: true, panicDuration: duration }]))); const fade = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / (duration * 1000)); controllers.current.forEach((control, id) => control.setVolume?.((levels.get(id) ?? 1) * (1 - progress))); if (progress === 1) clearInterval(fade); }, 16); setTimeout(stopAll, duration * 1000); };
-  const panicCue = (id) => { const control = controllers.current.get(id), duration = Math.max(0, settings.panicDuration); if (!control || !duration) return stopCue(id); const started = performance.now(), volume = control.currentVolume, opacity = control.currentOpacity; const fade = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / (duration * 1000)); control.setVolume?.(volume * (1 - progress)); control.setOpacity?.(opacity * (1 - progress)); if (progress === 1) clearInterval(fade); }, 16); setTimeout(() => stopCue(id), duration * 1000); };
-  const pauseAll = () => controllers.current.forEach((control) => control.pause?.());
-  const resumeAll = () => controllers.current.forEach((control) => control.resume?.());
+  const stopAll = () => {
+    [...controllers.current.keys()].forEach(stopCue);
+    preloaded.current.forEach((item) => {
+      if (item.url) URL.revokeObjectURL(item.url);
+    });
+    preloaded.current.clear();
+    setActive([]);
+    setPaused([]);
+    setRemaining({});
+    setStageLayers({});
+  };
+  const resetAll = () => {
+    stopAll();
+    const first = list.cues[0]?.id || "";
+    setPlayhead(first);
+    setSelected(first);
+    setSelectedIds(first ? [first] : []);
+  };
+  const panicAll = () => {
+    const duration = Math.max(0, settings.panicDuration);
+    if (!duration) return stopAll();
+    const started = performance.now(),
+      levels = new Map(
+        [...controllers.current].map(([id, control]) => [
+          id,
+          control.currentVolume ?? 1,
+        ]),
+      );
+    setStageLayers((layers) =>
+      Object.fromEntries(
+        Object.entries(layers).map(([id, layer]) => [
+          id,
+          { ...layer, panicking: true, panicDuration: duration },
+        ]),
+      ),
+    );
+    const fade = setInterval(() => {
+      const progress = Math.min(
+        1,
+        (performance.now() - started) / (duration * 1000),
+      );
+      controllers.current.forEach((control, id) =>
+        control.setVolume?.((levels.get(id) ?? 1) * (1 - progress)),
+      );
+      if (progress === 1) clearInterval(fade);
+    }, 16);
+    setTimeout(stopAll, duration * 1000);
+  };
+  const panicCue = (id) => {
+    const control = controllers.current.get(id),
+      duration = Math.max(0, settings.panicDuration);
+    if (!control || !duration) return stopCue(id);
+    const started = performance.now(),
+      volume = control.currentVolume,
+      opacity = control.currentOpacity;
+    const fade = setInterval(() => {
+      const progress = Math.min(
+        1,
+        (performance.now() - started) / (duration * 1000),
+      );
+      control.setVolume?.(volume * (1 - progress));
+      control.setOpacity?.(opacity * (1 - progress));
+      if (progress === 1) clearInterval(fade);
+    }, 16);
+    setTimeout(() => stopCue(id), duration * 1000);
+  };
+  const pauseAll = () =>
+    controllers.current.forEach((control) => control.pause?.());
+  const resumeAll = () =>
+    controllers.current.forEach((control) => control.resume?.());
 
   const runCue = async (value = cue, options = {}) => {
     if (!value) return;
-    setRuntimeWarnings((items) => { if (!items[value.id]) return items; const next = { ...items }; delete next[value.id]; return next; });
-    const preview = Boolean(options.preview), next = nextSibling(list.cues, value);
-    if (recording && !options.recorded) setRecording((state) => state ? { ...state, events: [...state.events, { cueId: value.id, at: performance.now() - state.started }] } : state);
-    log("cue", `${preview ? "Previewed" : "Started"} ${value.number ? `${value.number} - ` : ""}${value.name}`, value.id);
-    if (!value.armed) { if (value.skipIfDisarmed && !preview && next && ["Auto continue", "Auto follow"].includes(value.continueMode)) setTimeout(() => runCue(next), value.continueMode === "Auto continue" ? value.post * 1000 : value.pre * 1000 + value.duration * 1000); return; }
+    setRuntimeWarnings((items) => {
+      if (!items[value.id]) return items;
+      const next = { ...items };
+      delete next[value.id];
+      return next;
+    });
+    const preview = Boolean(options.preview),
+      next = nextSibling(list.cues, value);
+    if (recording && !options.recorded)
+      setRecording((state) =>
+        state
+          ? {
+              ...state,
+              events: [
+                ...state.events,
+                { cueId: value.id, at: performance.now() - state.started },
+              ],
+            }
+          : state,
+      );
+    log(
+      "cue",
+      `${preview ? "Previewed" : "Started"} ${value.number ? `${value.number} - ` : ""}${value.name}`,
+      value.id,
+    );
+    if (!value.armed) {
+      if (
+        value.skipIfDisarmed &&
+        !preview &&
+        next &&
+        ["Auto continue", "Auto follow"].includes(value.continueMode)
+      )
+        setTimeout(
+          () => runCue(next),
+          value.continueMode === "Auto continue"
+            ? value.post * 1000
+            : value.pre * 1000 + value.duration * 1000,
+        );
+      return;
+    }
     const existing = controllers.current.get(value.id);
     if (existing) {
       if (value.secondTrigger === "Does nothing") return;
       if (value.secondTrigger === "Panics") return panicCue(value.id);
-      if (["Stops", "Hard stops"].includes(value.secondTrigger)) return stopCue(value.id);
-      if (value.secondTrigger === "Devamps") { existing.devamp = true; if (existing.media) existing.media.loop = false; setStageLayers((layers) => layers[value.id] ? { ...layers, [value.id]: { ...layers[value.id], loops: 1 } } : layers); return; }
+      if (["Stops", "Hard stops"].includes(value.secondTrigger))
+        return stopCue(value.id);
+      if (value.secondTrigger === "Devamps") {
+        existing.devamp = true;
+        if (existing.media) existing.media.loop = false;
+        setStageLayers((layers) =>
+          layers[value.id]
+            ? { ...layers, [value.id]: { ...layers[value.id], loops: 1 } }
+            : layers,
+        );
+        return;
+      }
       stopCue(value.id);
     }
-    const control = { cancelled: false, paused: false, timerLeft: 0, currentVolume: (value.volume ?? 100) / 100, currentOpacity: (value.opacity ?? 100) / 100, parameters: { volume: value.volume ?? 100, opacity: value.opacity ?? 100, rate: value.rate ?? 100, x: value.x || 0, y: value.y || 0, scale: value.scale || 100, rotation: value.rotation || 0, rotateX: value.rotateX || 0, rotateY: value.rotateY || 0 }, stop: (cancelContinue = false) => { control.cancelled = true; clearTimeout(control.timeout); if (cancelContinue) clearTimeout(control.continueTimeout); clearInterval(control.interval); control.cleanup?.(); }, schedule: (ms, callback) => { clearTimeout(control.timeout); control.timerLeft = ms; control.timerStarted = performance.now(); control.timerCallback = callback; control.timeout = setTimeout(callback, ms); }, pause: () => { if (control.paused) return; control.paused = true; setPaused((items) => [...new Set([...items, value.id])]); if (control.timerCallback) { clearTimeout(control.timeout); control.timerLeft = Math.max(0, control.timerLeft - (performance.now() - control.timerStarted)); } control.media?.pause?.(); control.suspend?.(); }, resume: () => { if (!control.paused) return; control.paused = false; setPaused((items) => items.filter((id) => id !== value.id)); if (control.timerCallback) { control.timerStarted = performance.now(); control.timeout = setTimeout(control.timerCallback, control.timerLeft); } control.media?.play?.(); control.resumeDevice?.(); }, seek: (elapsed) => { const position = Math.max(0, Math.min(control.total || value.duration, elapsed)); control.left = Math.max(0, (control.total || value.duration) - position); control.timerLeft = control.left * 1000; if (control.media && Number.isFinite(control.media.duration)) control.media.currentTime = Math.min(control.media.duration, position + (value.trimStart || 0)); control.seekDevice?.(position); if (control.timerCallback && !control.paused) { clearTimeout(control.timeout); control.timerStarted = performance.now(); control.timeout = setTimeout(control.timerCallback, control.timerLeft); } setRemaining((items) => ({ ...items, [value.id]: control.left })); }, setVolume: (level) => { control.currentVolume = level; control.parameters.volume = level * 100; if (control.media) control.media.volume = Math.max(0, Math.min(1, level)); if (control.gain) control.gain.gain.value = level; }, setOpacity: (level) => { control.currentOpacity = level; control.parameters.opacity = level * 100; setStageLayers((layers) => layers[value.id] ? { ...layers, [value.id]: { ...layers[value.id], opacity: level * 100 } } : layers); }, setParameter: (key, next) => { control.parameters[key] = next; if (key === "volume") return control.setVolume(next / 100); if (key === "opacity") return control.setOpacity(next / 100); if (key === "rate" && control.media) control.media.playbackRate = Math.max(.01, next / 100); setStageLayers((layers) => layers[value.id] ? { ...layers, [value.id]: { ...layers[value.id], [key]: next } } : layers); } };
-    controllers.current.set(value.id, control); setActive((items) => [...new Set([...items, value.id])]);
-    if (value.secondColorAfterStart) patchCueById(value.id, { color: value.secondColor });
-    const scopedOther = (id) => id !== value.id && (value.fadeOthersScope === "Same list" ? list.cues.some((item) => item.id === id) : value.fadeOthersScope === "Target cue" ? findCue(value.target)?.id === id : true);
-    if (value.duckOthers) { const levels = new Map(); controllers.current.forEach((other, id) => { if (!scopedOther(id)) return; levels.set(id, other.currentVolume); const target = other.currentVolume * 10 ** ((value.duckAmount || -12) / 20), started = performance.now(), from = other.currentVolume, duration = Math.max(.01, value.duckDuration || .25) * 1000, timer = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / duration); other.setVolume?.(from + (target - from) * progress); if (progress === 1) clearInterval(timer); }, 16); }); duckedRef.current.set(value.id, levels); }
-    if (value.fadeOthers) controllers.current.forEach((other, id) => { if (!scopedOther(id)) return; const started = performance.now(), from = other.currentVolume, duration = Math.max(.01, value.fadeOthersDuration || .25) * 1000, timer = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / duration); other.setVolume?.(from * (1 - progress)); if (progress === 1) { clearInterval(timer); stopCue(id); } }, 16); });
-    if (!preview && value.continueMode === "Auto continue" && next) control.continueTimeout = setTimeout(() => runCue(next), value.post * 1000);
-    const mediaLength = value.type === "Audio" ? Math.max(0, (value.trimEnd || value.duration) - (value.trimStart || 0)) : value.duration;
-    let actionDuration = ["Audio", "Video"].includes(value.type) ? value.loops === 0 ? 0 : mediaLength / (value.rate / 100) * Math.max(1, value.loops) : value.duration;
-    const total = value.pre + Math.max(0, actionDuration); control.left = total; control.total = total;
+    const control = {
+      cancelled: false,
+      paused: false,
+      timerLeft: 0,
+      currentVolume: (value.volume ?? 100) / 100,
+      currentOpacity: (value.opacity ?? 100) / 100,
+      parameters: {
+        volume: value.volume ?? 100,
+        opacity: value.opacity ?? 100,
+        rate: value.rate ?? 100,
+        x: value.x || 0,
+        y: value.y || 0,
+        scale: value.scale || 100,
+        rotation: value.rotation || 0,
+        rotateX: value.rotateX || 0,
+        rotateY: value.rotateY || 0,
+      },
+      stop: (cancelContinue = false) => {
+        control.cancelled = true;
+        clearTimeout(control.timeout);
+        if (cancelContinue) clearTimeout(control.continueTimeout);
+        clearInterval(control.interval);
+        control.cleanup?.();
+      },
+      schedule: (ms, callback) => {
+        clearTimeout(control.timeout);
+        control.timerLeft = ms;
+        control.timerStarted = performance.now();
+        control.timerCallback = callback;
+        control.timeout = setTimeout(callback, ms);
+      },
+      pause: () => {
+        if (control.paused) return;
+        control.paused = true;
+        setPaused((items) => [...new Set([...items, value.id])]);
+        if (control.timerCallback) {
+          clearTimeout(control.timeout);
+          control.timerLeft = Math.max(
+            0,
+            control.timerLeft - (performance.now() - control.timerStarted),
+          );
+        }
+        control.media?.pause?.();
+        control.suspend?.();
+      },
+      resume: () => {
+        if (!control.paused) return;
+        control.paused = false;
+        setPaused((items) => items.filter((id) => id !== value.id));
+        if (control.timerCallback) {
+          control.timerStarted = performance.now();
+          control.timeout = setTimeout(
+            control.timerCallback,
+            control.timerLeft,
+          );
+        }
+        control.media?.play?.();
+        control.resumeDevice?.();
+      },
+      seek: (elapsed) => {
+        const position = Math.max(
+          0,
+          Math.min(control.total || value.duration, elapsed),
+        );
+        control.left = Math.max(
+          0,
+          (control.total || value.duration) - position,
+        );
+        control.timerLeft = control.left * 1000;
+        if (control.media && Number.isFinite(control.media.duration))
+          control.media.currentTime = Math.min(
+            control.media.duration,
+            position + (value.trimStart || 0),
+          );
+        control.seekDevice?.(position);
+        if (control.timerCallback && !control.paused) {
+          clearTimeout(control.timeout);
+          control.timerStarted = performance.now();
+          control.timeout = setTimeout(
+            control.timerCallback,
+            control.timerLeft,
+          );
+        }
+        setRemaining((items) => ({ ...items, [value.id]: control.left }));
+      },
+      setVolume: (level) => {
+        control.currentVolume = level;
+        control.parameters.volume = level * 100;
+        if (control.media)
+          control.media.volume = Math.max(0, Math.min(1, level));
+        if (control.gain) control.gain.gain.value = level;
+      },
+      setOpacity: (level) => {
+        control.currentOpacity = level;
+        control.parameters.opacity = level * 100;
+        setStageLayers((layers) =>
+          layers[value.id]
+            ? {
+                ...layers,
+                [value.id]: { ...layers[value.id], opacity: level * 100 },
+              }
+            : layers,
+        );
+      },
+      setParameter: (key, next) => {
+        control.parameters[key] = next;
+        if (key === "volume") return control.setVolume(next / 100);
+        if (key === "opacity") return control.setOpacity(next / 100);
+        if (key === "rate" && control.media)
+          control.media.playbackRate = Math.max(0.01, next / 100);
+        setStageLayers((layers) =>
+          layers[value.id]
+            ? { ...layers, [value.id]: { ...layers[value.id], [key]: next } }
+            : layers,
+        );
+      },
+    };
+    controllers.current.set(value.id, control);
+    setActive((items) => [...new Set([...items, value.id])]);
+    if (value.secondColorAfterStart)
+      patchCueById(value.id, { color: value.secondColor });
+    const scopedOther = (id) =>
+      id !== value.id &&
+      (value.fadeOthersScope === "Same list"
+        ? list.cues.some((item) => item.id === id)
+        : value.fadeOthersScope === "Target cue"
+          ? findCue(value.target)?.id === id
+          : true);
+    if (value.duckOthers) {
+      const levels = new Map();
+      controllers.current.forEach((other, id) => {
+        if (!scopedOther(id)) return;
+        levels.set(id, other.currentVolume);
+        const target =
+            other.currentVolume * 10 ** ((value.duckAmount || -12) / 20),
+          started = performance.now(),
+          from = other.currentVolume,
+          duration = Math.max(0.01, value.duckDuration || 0.25) * 1000,
+          timer = setInterval(() => {
+            const progress = Math.min(
+              1,
+              (performance.now() - started) / duration,
+            );
+            other.setVolume?.(from + (target - from) * progress);
+            if (progress === 1) clearInterval(timer);
+          }, 16);
+      });
+      duckedRef.current.set(value.id, levels);
+    }
+    if (value.fadeOthers)
+      controllers.current.forEach((other, id) => {
+        if (!scopedOther(id)) return;
+        const started = performance.now(),
+          from = other.currentVolume,
+          duration = Math.max(0.01, value.fadeOthersDuration || 0.25) * 1000,
+          timer = setInterval(() => {
+            const progress = Math.min(
+              1,
+              (performance.now() - started) / duration,
+            );
+            other.setVolume?.(from * (1 - progress));
+            if (progress === 1) {
+              clearInterval(timer);
+              stopCue(id);
+            }
+          }, 16);
+      });
+    if (!preview && value.continueMode === "Auto continue" && next)
+      control.continueTimeout = setTimeout(
+        () => runCue(next),
+        value.post * 1000,
+      );
+    const mediaLength =
+      value.type === "Audio"
+        ? Math.max(
+            0,
+            (value.trimEnd || value.duration) - (value.trimStart || 0),
+          )
+        : value.duration;
+    let actionDuration = ["Audio", "Video"].includes(value.type)
+      ? value.loops === 0
+        ? 0
+        : (mediaLength / (value.rate / 100)) * Math.max(1, value.loops)
+      : value.duration;
+    const total = value.pre + Math.max(0, actionDuration);
+    control.left = total;
+    control.total = total;
     setRemaining((items) => ({ ...items, [value.id]: control.left }));
-    control.interval = setInterval(() => { if (control.paused) return; control.left = Math.max(0, control.left - .1); setRemaining((items) => ({ ...items, [value.id]: control.left })); if (value.type === "Timecode" && value.timecodeMode === "Display" && (!settings.audition || settings.auditionVideo)) setStage({ cueId: value.id, type: "timecode", content: timecodeText(timecodeSeconds(value.timecodeStart, value.timecodeFps) + Math.max(0, value.duration - control.left), value.timecodeFps), ...visualProps(value) }); }, 100);
-    if (value.pre && !preview) await new Promise((resolve) => control.schedule(value.pre * 1000, resolve));
+    control.interval = setInterval(() => {
+      if (control.paused) return;
+      control.left = Math.max(0, control.left - 0.1);
+      setRemaining((items) => ({ ...items, [value.id]: control.left }));
+      if (
+        value.type === "Timecode" &&
+        value.timecodeMode === "Display" &&
+        (!settings.audition || settings.auditionVideo)
+      )
+        setStage({
+          cueId: value.id,
+          type: "timecode",
+          content: timecodeText(
+            timecodeSeconds(value.timecodeStart, value.timecodeFps) +
+              Math.max(0, value.duration - control.left),
+            value.timecodeFps,
+          ),
+          ...visualProps(value),
+        });
+    }, 100);
+    if (value.pre && !preview)
+      await new Promise((resolve) =>
+        control.schedule(value.pre * 1000, resolve),
+      );
     if (control.cancelled) return;
     try {
       const target = findCue(value.target);
-      if (["Start", "Stop", "Pause", "Load", "Reset", "GoTo", "Arm", "Disarm", "Fade", "Devamp"].includes(value.type) && !target) throw new Error(`${value.name} needs a valid target cue number.`);
+      if (
+        [
+          "Start",
+          "Stop",
+          "Pause",
+          "Load",
+          "Reset",
+          "GoTo",
+          "Arm",
+          "Disarm",
+          "Fade",
+          "Devamp",
+        ].includes(value.type) &&
+        !target
+      )
+        throw new Error(`${value.name} needs a valid target cue number.`);
       if (value.type === "Group") {
         let children = childrenOf(list.cues, value.id);
-        if (!children.length) throw new Error(`${value.name} needs at least one valid child cue number.`);
-        if (value.groupMode === "Playlist" && value.playlistShuffle) children = [...children].sort(() => Math.random() - .5);
-        const childDuration = (child) => ["Audio", "Video"].includes(child.type) ? child.loops === 0 ? 0 : child.duration / (child.rate / 100) * Math.max(1, child.loops) : child.duration;
-        const persistent = (child) => childDuration(child) === 0 && ["Audio", "Video", "Mic", "Camera", "Text", "Timecode"].includes(child.type);
-        control.childIds = []; control.cleanup = () => control.childIds.forEach(stopCue);
-        const startChild = (child) => { control.childIds.push(child.id); return runCue(child, options); };
-        if (value.groupMode === "Start random") { let history = groupRandomRef.current.get(value.id) || [], available = children.filter((child) => child.armed && !controllers.current.has(child.id) && !history.includes(child.id)); if (!available.length) { history = []; available = children.filter((child) => child.armed && !controllers.current.has(child.id)); } const child = available[Math.floor(Math.random() * available.length)]; if (!child) throw new Error("No armed Group child is available."); groupRandomRef.current.set(value.id, [...history, child.id]); actionDuration = child.pre + childDuration(child) + child.post; control.persistentGroup = persistent(child); startChild(child); }
-        else if (value.groupMode === "Start first and enter") { const child = children[0]; actionDuration = child.pre + childDuration(child) + child.post; control.persistentGroup = persistent(child); selectCue(child.id, null); startChild(child); }
-        else if (value.groupMode === "Start first") { const child = children[0]; actionDuration = child.pre + childDuration(child) + child.post; control.persistentGroup = persistent(child); startChild(child); }
-        else if (value.groupMode === "Playlist") { do { for (let index = 0; index < children.length; index++) { if (control.cancelled) break; const child = children[index], nextChild = children[index + 1]; await startChild(child); if (value.playlistCrossfade > 0 && nextChild) { await new Promise((resolve) => setTimeout(resolve, Math.max(0, child.pre + childDuration(child) - value.playlistCrossfade) * 1000)); const childControl = controllers.current.get(child.id), from = childControl?.currentVolume ?? 1, started = performance.now(), duration = value.playlistCrossfade * 1000; await startChild(nextChild); const nextControl = controllers.current.get(nextChild.id); nextControl?.setVolume?.(0); const fade = setInterval(() => { const raw = Math.min(1, (performance.now() - started) / duration); childControl?.setVolume?.(from * (1 - curveValue(value.playlistFadeOutCurve, raw))); nextControl?.setVolume?.((nextChild.volume ?? 100) / 100 * curveValue(value.playlistFadeInCurve, raw)); if (raw === 1) { clearInterval(fade); stopCue(child.id); } }, 16); await new Promise((resolve) => setTimeout(resolve, duration)); index++; } else while (!control.cancelled && controllers.current.has(child.id)) await new Promise((resolve) => setTimeout(resolve, 50)); } } while (value.playlistLoop && !control.cancelled); actionDuration = 0; }
-        else { actionDuration = Math.max(...children.map((child) => child.pre + childDuration(child) + child.post)); control.persistentGroup = children.some(persistent); children.forEach(startChild); }
+        if (!children.length)
+          throw new Error(
+            `${value.name} needs at least one valid child cue number.`,
+          );
+        if (value.groupMode === "Playlist" && value.playlistShuffle)
+          children = [...children].sort(() => Math.random() - 0.5);
+        const childDuration = (child) =>
+          ["Audio", "Video"].includes(child.type)
+            ? child.loops === 0
+              ? 0
+              : (child.duration / (child.rate / 100)) * Math.max(1, child.loops)
+            : child.duration;
+        const persistent = (child) =>
+          childDuration(child) === 0 &&
+          ["Audio", "Video", "Mic", "Camera", "Text", "Timecode"].includes(
+            child.type,
+          );
+        control.childIds = [];
+        control.cleanup = () => control.childIds.forEach(stopCue);
+        const startChild = (child) => {
+          control.childIds.push(child.id);
+          return runCue(child, options);
+        };
+        if (value.groupMode === "Start random") {
+          let history = groupRandomRef.current.get(value.id) || [],
+            available = children.filter(
+              (child) =>
+                child.armed &&
+                !controllers.current.has(child.id) &&
+                !history.includes(child.id),
+            );
+          if (!available.length) {
+            history = [];
+            available = children.filter(
+              (child) => child.armed && !controllers.current.has(child.id),
+            );
+          }
+          const child = available[Math.floor(Math.random() * available.length)];
+          if (!child) throw new Error("No armed Group child is available.");
+          groupRandomRef.current.set(value.id, [...history, child.id]);
+          actionDuration = child.pre + childDuration(child) + child.post;
+          control.persistentGroup = persistent(child);
+          startChild(child);
+        } else if (value.groupMode === "Start first and enter") {
+          const child = children[0];
+          actionDuration = child.pre + childDuration(child) + child.post;
+          control.persistentGroup = persistent(child);
+          selectCue(child.id, null);
+          startChild(child);
+        } else if (value.groupMode === "Start first") {
+          const child = children[0];
+          actionDuration = child.pre + childDuration(child) + child.post;
+          control.persistentGroup = persistent(child);
+          startChild(child);
+        } else if (value.groupMode === "Playlist") {
+          do {
+            for (let index = 0; index < children.length; index++) {
+              if (control.cancelled) break;
+              const child = children[index],
+                nextChild = children[index + 1];
+              await startChild(child);
+              if (value.playlistCrossfade > 0 && nextChild) {
+                await new Promise((resolve) =>
+                  setTimeout(
+                    resolve,
+                    Math.max(
+                      0,
+                      child.pre +
+                        childDuration(child) -
+                        value.playlistCrossfade,
+                    ) * 1000,
+                  ),
+                );
+                const childControl = controllers.current.get(child.id),
+                  from = childControl?.currentVolume ?? 1,
+                  started = performance.now(),
+                  duration = value.playlistCrossfade * 1000;
+                await startChild(nextChild);
+                const nextControl = controllers.current.get(nextChild.id);
+                nextControl?.setVolume?.(0);
+                const fade = setInterval(() => {
+                  const raw = Math.min(
+                    1,
+                    (performance.now() - started) / duration,
+                  );
+                  childControl?.setVolume?.(
+                    from * (1 - curveValue(value.playlistFadeOutCurve, raw)),
+                  );
+                  nextControl?.setVolume?.(
+                    ((nextChild.volume ?? 100) / 100) *
+                      curveValue(value.playlistFadeInCurve, raw),
+                  );
+                  if (raw === 1) {
+                    clearInterval(fade);
+                    stopCue(child.id);
+                  }
+                }, 16);
+                await new Promise((resolve) => setTimeout(resolve, duration));
+                index++;
+              } else
+                while (!control.cancelled && controllers.current.has(child.id))
+                  await new Promise((resolve) => setTimeout(resolve, 50));
+            }
+          } while (value.playlistLoop && !control.cancelled);
+          actionDuration = 0;
+        } else {
+          actionDuration = Math.max(
+            ...children.map(
+              (child) => child.pre + childDuration(child) + child.post,
+            ),
+          );
+          control.persistentGroup = children.some(persistent);
+          children.forEach(startChild);
+        }
         control.left = actionDuration;
       }
-      if (["Start", "GoTo"].includes(value.type) && target) { if (value.type === "GoTo") selectCue(target.id, null); else runCue(target); }
+      if (["Start", "GoTo"].includes(value.type) && target) {
+        if (value.type === "GoTo") selectCue(target.id, null);
+        else runCue(target);
+      }
       if (value.type === "Stop") stopCue(target.id);
-      if (value.type === "Pause") { const targetControl = controllers.current.get(target.id); if (!targetControl) throw new Error(`${target.name} is not running.`); targetControl.pause?.(); }
-      if (value.type === "Reset") { stopCue(target.id); const loaded = preloaded.current.get(target.id); if (loaded) { URL.revokeObjectURL(loaded.url); preloaded.current.delete(target.id); } }
-      if (value.type === "Load") { if (!target.fileKey || !["Audio", "Video"].includes(target.type)) throw new Error(`${target.name} has no loadable media file.`); const file = await loadFile(target.fileKey); if (!file) throw new Error(`${target.name}'s media file is unavailable.`); const previous = preloaded.current.get(target.id); if (previous?.url) URL.revokeObjectURL(previous.url); if (target.type === "Audio") preloaded.current.set(target.id, { file }); else { const url = URL.createObjectURL(file), media = document.createElement("video"); media.preload = "auto"; media.src = url; media.load(); await new Promise((resolve) => { media.oncanplaythrough = resolve; media.onerror = resolve; }); preloaded.current.set(target.id, { media, url }); } }
-      if (["Arm", "Disarm"].includes(value.type) && target) patchCueById(target.id, { armed: value.type === "Arm" });
-      if (value.type === "Target") { const change = cueTargetPatch(value.target), destination = change && findCue(change.number); if (!destination || !change) throw new Error("Target cues use cue-number=property:value."); const updated = setPath(destination, change.path, change.value); patchCueById(destination.id, updated); controllers.current.get(destination.id)?.setParameter?.(change.path, change.value); }
-      if (value.type === "Text" && (!settings.audition || settings.auditionVideo)) setStage({ cueId: value.id, type: "text", content: value.target || value.name, html: value.textHtml || value.target || value.name, ...visualProps(value) });
-      if (value.type === "Audio" && (!settings.audition || settings.auditionAudio)) {
-        if (!value.fileKey) throw new Error(`Choose a file for ${value.name}.`);
-        const loaded = preloaded.current.get(value.id), file = loaded?.file || await loadFile(value.fileKey), patch = audioPatch(value); preloaded.current.delete(value.id); if (!file) throw new Error(`The media file for ${value.name} is unavailable.`); const routed = await playRoutedAudio(file, value, patch?.deviceId || settings.audioOutput, () => { control.stop(); finishCue(value, !preview); });
-        control.gain = routed.gain; control.media = routed.media; control.suspend = routed.pause; control.resumeDevice = routed.resume; control.seekDevice = (position) => routed.seek(Math.max(0, position - value.pre)); control.cleanup = routed.stop; actionDuration = routed.duration; control.left = value.pre + routed.duration;
+      if (value.type === "Pause") {
+        const targetControl = controllers.current.get(target.id);
+        if (!targetControl) throw new Error(`${target.name} is not running.`);
+        targetControl.pause?.();
       }
-      if (value.type === "Video" && (!settings.audition || settings.auditionVideo)) {
-        if (!value.fileKey) throw new Error(`Choose a file for ${value.name}.`);
-        const loaded = preloaded.current.get(value.id), url = loaded?.url || await blobUrl(value.fileKey), media = loaded?.media || document.createElement("video"), start = value.trimStart || 0, end = value.trimEnd || value.duration || Infinity, markers = (value.slices || []).filter((slice) => slice.at > start && slice.at < end).sort((a, b) => a.at - b.at), points = [start, ...markers.map((slice) => slice.at), end], segments = points.slice(0, -1).map((from, index) => ({ start: from, end: points[index + 1], count: index ? Number(markers[index - 1].count ?? 1) : 1 })).filter((slice) => slice.count !== 0), onePlay = segments.some((slice) => slice.count < 0) ? 0 : segments.reduce((sum, slice) => sum + (slice.end - slice.start) * slice.count / (value.rate / 100), 0); actionDuration = value.loops && onePlay ? onePlay * value.loops : 0; control.left = value.pre + actionDuration; preloaded.current.delete(value.id); control.media = media; media.src ||= url; media.playbackRate = value.rate / 100; media.preservesPitch = value.preservePitch; media.volume = value.volume / 100; media.loop = false; media.currentTime = segments[0]?.start || start;
-        setStage({ cueId: value.id, type: "video", content: url, loops: value.loops, rate: value.rate, preservePitch: value.preservePitch, trimStart: start, ...visualProps(value) });
-        let plays = 1, segment = 0, segmentPlay = 0; const ended = () => { if (value.holdAtEnd && !control.devamp) { media.pause(); setStageLayers((layers) => layers[value.id] ? { ...layers, [value.id]: { ...layers[value.id], hold: true } } : layers); return; } if (!control.devamp && (value.loops === 0 || value.loops > plays)) { plays++; segment = 0; segmentPlay = 0; media.currentTime = segments[0]?.start || start; media.play(); } else { control.stop(); finishCue(value, !preview); } }; const nextSegment = () => { const slice = segments[segment]; segmentPlay++; if (slice?.count < 0 || segmentPlay < slice?.count) media.currentTime = slice.start; else { segment++; segmentPlay = 0; if (segments[segment]) media.currentTime = segments[segment].start; else return ended(); } media.play(); }; media.ontimeupdate = () => { const slice = segments[segment]; if (slice && media.currentTime >= slice.end - .02) { media.pause(); nextSegment(); } }; media.onended = nextSegment;
-        await media.play(); control.cleanup = () => { media.onended = null; media.ontimeupdate = null; media.pause(); URL.revokeObjectURL(url); };
-      }
-      if (value.type === "Mic" && (!settings.audition || settings.auditionAudio)) {
-        const stream = value.micSource === "Screen or tab" ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }) : await navigator.mediaDevices.getUserMedia({ audio: settings.audioInput ? { deviceId: { exact: settings.audioInput } } : true });
-        if (value.micSource === "Screen or tab") { stream.getVideoTracks().forEach((track) => track.stop()); if (!stream.getAudioTracks().length) throw new Error("The selected screen or tab did not share audio."); }
-        const audio = new AudioContext(), patch = audioPatch(value); if ((patch?.deviceId || settings.audioOutput) && "setSinkId" in audio) await (audio as any).setSinkId(patch?.deviceId || settings.audioOutput); const source = audio.createMediaStreamSource(stream), gain = audio.createGain(); gain.gain.value = value.volume / 100; source.connect(gain).connect(audio.destination); control.gain = gain; control.suspend = () => audio.suspend(); control.resumeDevice = () => audio.resume(); control.cleanup = () => { stream.getTracks().forEach((track) => track.stop()); audio.close(); };
-      }
-      if (value.type === "Camera" && (!settings.audition || settings.auditionVideo)) {
-        const stream = value.cameraSource === "Screen or window" ? await navigator.mediaDevices.getDisplayMedia({ video: true, audio: value.cameraAudio }) : await navigator.mediaDevices.getUserMedia({ video: settings.videoInput ? { deviceId: { exact: settings.videoInput } } : true, audio: value.cameraAudio ? settings.audioInput ? { deviceId: { exact: settings.audioInput } } : true : false });
-        let audio; if (value.cameraAudio) { audio = new AudioContext(); const patch = audioPatch(value); if ((patch?.deviceId || settings.audioOutput) && "setSinkId" in audio) await (audio as any).setSinkId(patch?.deviceId || settings.audioOutput); const source = audio.createMediaStreamSource(stream), gain = audio.createGain(); gain.gain.value = value.volume / 100; source.connect(gain).connect(audio.destination); control.gain = gain; control.suspend = () => audio.suspend(); control.resumeDevice = () => audio.resume(); }
-        setStage({ cueId: value.id, type: "stream", stream, ...visualProps(value) }); control.cleanup = () => { stream.getTracks().forEach((track) => track.stop()); audio?.close(); };
-      }
-      if (value.type === "MIDI" && (!settings.audition || settings.auditionMidi)) {
-        midiRef.current ||= await requestMidi(); const output = midiOutput(value), message = midiMessage(value); if (!output) throw new Error("No MIDI output is available."); if (!message.length) throw new Error("Enter at least one valid MIDI byte."); output.send(message);
-      }
-      if (value.type === "MIDI File" && (!settings.audition || settings.auditionMidi)) {
-        midiRef.current ||= await requestMidi(); const output = midiOutput(value), file = await loadFile(value.fileKey); if (!output || !file) throw new Error("Choose a MIDI output and MIDI file."); const duration = scheduleMidiFile(await file.arrayBuffer(), output, value.rate / 100); control.cleanup = () => { output.clear?.(); for (let channel = 0; channel < 16; channel++) output.send([176 + channel, 123, 0]); }; if (!value.duration) { actionDuration = duration; control.left = duration; patchCueById(value.id, { duration }); }
-      }
-      if (value.type === "Light" && (!settings.audition || settings.auditionLight)) { const patch = settings.lightPatches.find((item) => item.id === value.lightPatch) || settings.lightPatches[0], levels = { ...parseLightCommand(value.target, settings.fixtures), ...value.lightLevels }, from = structuredClone(lightStateRef.current), duration = Math.max(0, value.duration) * 1000; serialRef.current ||= await requestSerial(patch?.baudRate || settings.baudRate); const send = async (progress) => { const current = {}; settings.fixtures.forEach((fixture) => { const before = from[fixture.id] || {}, after = levels[fixture.id] || before; current[fixture.id] = Object.fromEntries(Object.keys(fixture.channels).map((parameter) => [parameter, (Number(before[parameter]) || 0) + ((Number(after[parameter]) || 0) - (Number(before[parameter]) || 0)) * curveValue(value.lightCurve, progress)])); }); const frames = dmxFrame(settings.fixtures, current); for (const [universe, frame] of Object.entries(frames)) await writeSerial(serialRef.current, JSON.stringify({ protocol: "dmx", universe: Number(universe), data: frame })); }; if (!duration) await send(1); else { const started = performance.now(), timer = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / duration); send(progress).catch((error) => fail(error, value.id)); if (progress === 1) clearInterval(timer); }, 1000 / 30); const prior = control.cleanup; control.cleanup = () => { prior?.(); clearInterval(timer); }; } lightStateRef.current = { ...from, ...levels }; }
-      if (value.type === "Network") { if (!value.target) throw new Error("Enter an HTTPS or WebSocket URL."); if (!settings.audition || settings.auditionNetwork) { const send = (payload) => sendNetwork(value.target, payload, value.method).catch((error) => fail(error, value.id)); await sendNetwork(value.target, value.payload, value.method); if (value.networkMode !== "Once" && value.duration > 0) { const from = Number(value.payload), to = Number(value.networkEnd); if (value.networkMode === "1D Fade" && (!Number.isFinite(from) || !Number.isFinite(to))) throw new Error("A 1D Network Fade needs numeric start and end payloads."); const started = performance.now(), timer = setInterval(() => { const progress = Math.min(1, (performance.now() - started) / (value.duration * 1000)); send(value.networkMode === "1D Fade" ? String(from + (to - from) * progress) : value.payload); if (progress === 1) clearInterval(timer); }, 1000 / Math.max(1, value.networkFps)); const prior = control.cleanup; control.cleanup = () => { prior?.(); clearInterval(timer); }; } } }
-      if (value.type === "Timecode") {
-        const startSeconds = timecodeSeconds(value.timecodeStart, value.timecodeFps);
-        if (value.timecodeMode === "Display" && (!settings.audition || settings.auditionVideo)) setStage({ cueId: value.id, type: "timecode", content: timecodeText(startSeconds, value.timecodeFps), ...visualProps(value) });
-        if (value.timecodeMode === "MIDI Timecode" && (!settings.audition || settings.auditionTimecode)) {
-          midiRef.current ||= await requestMidi(); const output = midiOutput(value); if (!output) throw new Error("No MIDI output is available.");
-          const fps = Number(value.timecodeFps) || 30, rateCode = fps === 24 ? 0 : fps === 25 ? 1 : fps === 29.97 ? 2 : 3, frame = Math.floor(startSeconds * fps) % Math.round(fps), second = Math.floor(startSeconds) % 60, minute = Math.floor(startSeconds / 60) % 60, hour = Math.floor(startSeconds / 3600) % 24; output.send([240, 127, 127, 1, 1, rateCode << 5 | hour, minute, second, frame, 247]); let part = 0, mtcTimer;
-          const send = () => { const elapsed = startSeconds + Math.max(0, value.duration - control.left), frame = Math.floor(elapsed * fps) % Math.round(fps), second = Math.floor(elapsed) % 60, minute = Math.floor(elapsed / 60) % 60, hour = Math.floor(elapsed / 3600) % 24, nibbles = [frame & 15, frame >> 4, second & 15, second >> 4, minute & 15, minute >> 4, hour & 15, (hour >> 4) | rateCode << 1]; output.send([241, part << 4 | nibbles[part]]); part = (part + 1) % 8; };
-          const start = () => { send(); mtcTimer = setInterval(send, 1000 / (fps * 4)); }; start(); control.suspend = () => clearInterval(mtcTimer); control.resumeDevice = start; const prior = control.cleanup; control.cleanup = () => { prior?.(); clearInterval(mtcTimer); };
+      if (value.type === "Reset") {
+        stopCue(target.id);
+        const loaded = preloaded.current.get(target.id);
+        if (loaded) {
+          URL.revokeObjectURL(loaded.url);
+          preloaded.current.delete(target.id);
         }
-        if (value.timecodeMode === "Linear Timecode" && (!settings.audition || settings.auditionLtc)) { const patch = audioPatch(value), ltc = await startLtc(value.timecodeFps, startSeconds, value.volume / 100, patch?.deviceId || settings.audioOutput); control.gain = ltc.gain; control.suspend = () => ltc.audio.suspend(); control.resumeDevice = () => ltc.audio.resume(); const prior = control.cleanup; control.cleanup = () => { prior?.(); ltc.node.disconnect(); ltc.audio.close(); }; }
+      }
+      if (value.type === "Load") {
+        if (!target.fileKey || !["Audio", "Video"].includes(target.type))
+          throw new Error(`${target.name} has no loadable media file.`);
+        const file = await loadFile(target.fileKey);
+        if (!file)
+          throw new Error(`${target.name}'s media file is unavailable.`);
+        const previous = preloaded.current.get(target.id);
+        if (previous?.url) URL.revokeObjectURL(previous.url);
+        if (target.type === "Audio") preloaded.current.set(target.id, { file });
+        else {
+          const url = URL.createObjectURL(file),
+            media = document.createElement("video");
+          media.preload = "auto";
+          media.src = url;
+          media.load();
+          await new Promise((resolve) => {
+            media.oncanplaythrough = resolve;
+            media.onerror = resolve;
+          });
+          preloaded.current.set(target.id, { media, url });
+        }
+      }
+      if (["Arm", "Disarm"].includes(value.type) && target)
+        patchCueById(target.id, { armed: value.type === "Arm" });
+      if (value.type === "Target") {
+        const change = cueTargetPatch(value.target),
+          destination = change && findCue(change.number);
+        if (!destination || !change)
+          throw new Error("Target cues use cue-number=property:value.");
+        const updated = setPath(destination, change.path, change.value);
+        patchCueById(destination.id, updated);
+        controllers.current
+          .get(destination.id)
+          ?.setParameter?.(change.path, change.value);
+      }
+      if (
+        value.type === "Text" &&
+        (!settings.audition || settings.auditionVideo)
+      )
+        setStage({
+          cueId: value.id,
+          type: "text",
+          content: value.target || value.name,
+          html: value.textHtml || value.target || value.name,
+          ...visualProps(value),
+        });
+      if (
+        value.type === "Audio" &&
+        (!settings.audition || settings.auditionAudio)
+      ) {
+        if (!value.fileKey) throw new Error(`Choose a file for ${value.name}.`);
+        const loaded = preloaded.current.get(value.id),
+          file = loaded?.file || (await loadFile(value.fileKey)),
+          patch = audioPatch(value);
+        preloaded.current.delete(value.id);
+        if (!file)
+          throw new Error(`The media file for ${value.name} is unavailable.`);
+        const routed = await playRoutedAudio(
+          file,
+          value,
+          patch?.deviceId || settings.audioOutput,
+          () => {
+            control.stop();
+            finishCue(value, !preview);
+          },
+        );
+        control.gain = routed.gain;
+        control.media = routed.media;
+        control.suspend = routed.pause;
+        control.resumeDevice = routed.resume;
+        control.seekDevice = (position) =>
+          routed.seek(Math.max(0, position - value.pre));
+        control.cleanup = routed.stop;
+        actionDuration = routed.duration;
+        control.left = value.pre + routed.duration;
+      }
+      if (
+        value.type === "Video" &&
+        (!settings.audition || settings.auditionVideo)
+      ) {
+        if (!value.fileKey) throw new Error(`Choose a file for ${value.name}.`);
+        const loaded = preloaded.current.get(value.id),
+          url = loaded?.url || (await blobUrl(value.fileKey)),
+          media = loaded?.media || document.createElement("video"),
+          start = value.trimStart || 0,
+          end = value.trimEnd || value.duration || Infinity,
+          markers = (value.slices || [])
+            .filter((slice) => slice.at > start && slice.at < end)
+            .sort((a, b) => a.at - b.at),
+          points = [start, ...markers.map((slice) => slice.at), end],
+          segments = points
+            .slice(0, -1)
+            .map((from, index) => ({
+              start: from,
+              end: points[index + 1],
+              count: index ? Number(markers[index - 1].count ?? 1) : 1,
+            }))
+            .filter((slice) => slice.count !== 0),
+          onePlay = segments.some((slice) => slice.count < 0)
+            ? 0
+            : segments.reduce(
+                (sum, slice) =>
+                  sum +
+                  ((slice.end - slice.start) * slice.count) /
+                    (value.rate / 100),
+                0,
+              );
+        actionDuration = value.loops && onePlay ? onePlay * value.loops : 0;
+        control.left = value.pre + actionDuration;
+        preloaded.current.delete(value.id);
+        control.media = media;
+        media.src ||= url;
+        media.playbackRate = value.rate / 100;
+        media.preservesPitch = value.preservePitch;
+        media.volume = value.volume / 100;
+        media.loop = false;
+        media.currentTime = segments[0]?.start || start;
+        setStage({
+          cueId: value.id,
+          type: "video",
+          content: url,
+          loops: value.loops,
+          rate: value.rate,
+          preservePitch: value.preservePitch,
+          trimStart: start,
+          ...visualProps(value),
+        });
+        let plays = 1,
+          segment = 0,
+          segmentPlay = 0;
+        const ended = () => {
+          if (value.holdAtEnd && !control.devamp) {
+            media.pause();
+            setStageLayers((layers) =>
+              layers[value.id]
+                ? { ...layers, [value.id]: { ...layers[value.id], hold: true } }
+                : layers,
+            );
+            return;
+          }
+          if (!control.devamp && (value.loops === 0 || value.loops > plays)) {
+            plays++;
+            segment = 0;
+            segmentPlay = 0;
+            media.currentTime = segments[0]?.start || start;
+            media.play();
+          } else {
+            control.stop();
+            finishCue(value, !preview);
+          }
+        };
+        const nextSegment = () => {
+          const slice = segments[segment];
+          segmentPlay++;
+          if (slice?.count < 0 || segmentPlay < slice?.count)
+            media.currentTime = slice.start;
+          else {
+            segment++;
+            segmentPlay = 0;
+            if (segments[segment]) media.currentTime = segments[segment].start;
+            else return ended();
+          }
+          media.play();
+        };
+        media.ontimeupdate = () => {
+          const slice = segments[segment];
+          if (slice && media.currentTime >= slice.end - 0.02) {
+            media.pause();
+            nextSegment();
+          }
+        };
+        media.onended = nextSegment;
+        await media.play();
+        control.cleanup = () => {
+          media.onended = null;
+          media.ontimeupdate = null;
+          media.pause();
+          URL.revokeObjectURL(url);
+        };
+      }
+      if (
+        value.type === "Mic" &&
+        (!settings.audition || settings.auditionAudio)
+      ) {
+        const stream =
+          value.micSource === "Screen or tab"
+            ? await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true,
+              })
+            : await navigator.mediaDevices.getUserMedia({
+                audio: settings.audioInput
+                  ? { deviceId: { exact: settings.audioInput } }
+                  : true,
+              });
+        if (value.micSource === "Screen or tab") {
+          stream.getVideoTracks().forEach((track) => track.stop());
+          if (!stream.getAudioTracks().length)
+            throw new Error("The selected screen or tab did not share audio.");
+        }
+        const audio = new AudioContext(),
+          patch = audioPatch(value);
+        if ((patch?.deviceId || settings.audioOutput) && "setSinkId" in audio)
+          await (audio as any).setSinkId(
+            patch?.deviceId || settings.audioOutput,
+          );
+        const source = audio.createMediaStreamSource(stream),
+          gain = audio.createGain();
+        gain.gain.value = value.volume / 100;
+        source.connect(gain).connect(audio.destination);
+        control.gain = gain;
+        control.suspend = () => audio.suspend();
+        control.resumeDevice = () => audio.resume();
+        control.cleanup = () => {
+          stream.getTracks().forEach((track) => track.stop());
+          audio.close();
+        };
+      }
+      if (
+        value.type === "Camera" &&
+        (!settings.audition || settings.auditionVideo)
+      ) {
+        const stream =
+          value.cameraSource === "Screen or window"
+            ? await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: value.cameraAudio,
+              })
+            : await navigator.mediaDevices.getUserMedia({
+                video: settings.videoInput
+                  ? { deviceId: { exact: settings.videoInput } }
+                  : true,
+                audio: value.cameraAudio
+                  ? settings.audioInput
+                    ? { deviceId: { exact: settings.audioInput } }
+                    : true
+                  : false,
+              });
+        let audio;
+        if (value.cameraAudio) {
+          audio = new AudioContext();
+          const patch = audioPatch(value);
+          if ((patch?.deviceId || settings.audioOutput) && "setSinkId" in audio)
+            await (audio as any).setSinkId(
+              patch?.deviceId || settings.audioOutput,
+            );
+          const source = audio.createMediaStreamSource(stream),
+            gain = audio.createGain();
+          gain.gain.value = value.volume / 100;
+          source.connect(gain).connect(audio.destination);
+          control.gain = gain;
+          control.suspend = () => audio.suspend();
+          control.resumeDevice = () => audio.resume();
+        }
+        setStage({
+          cueId: value.id,
+          type: "stream",
+          stream,
+          ...visualProps(value),
+        });
+        control.cleanup = () => {
+          stream.getTracks().forEach((track) => track.stop());
+          audio?.close();
+        };
+      }
+      if (
+        value.type === "MIDI" &&
+        (!settings.audition || settings.auditionMidi)
+      ) {
+        midiRef.current ||= await requestMidi();
+        const output = midiOutput(value),
+          message = midiMessage(value);
+        if (!output) throw new Error("No MIDI output is available.");
+        if (!message.length)
+          throw new Error("Enter at least one valid MIDI byte.");
+        output.send(message);
+      }
+      if (
+        value.type === "MIDI File" &&
+        (!settings.audition || settings.auditionMidi)
+      ) {
+        midiRef.current ||= await requestMidi();
+        const output = midiOutput(value),
+          file = await loadFile(value.fileKey);
+        if (!output || !file)
+          throw new Error("Choose a MIDI output and MIDI file.");
+        const duration = scheduleMidiFile(
+          await file.arrayBuffer(),
+          output,
+          value.rate / 100,
+        );
+        control.cleanup = () => {
+          output.clear?.();
+          for (let channel = 0; channel < 16; channel++)
+            output.send([176 + channel, 123, 0]);
+        };
+        if (!value.duration) {
+          actionDuration = duration;
+          control.left = duration;
+          patchCueById(value.id, { duration });
+        }
+      }
+      if (
+        value.type === "Light" &&
+        (!settings.audition || settings.auditionLight)
+      ) {
+        const patch =
+            settings.lightPatches.find(
+              (item) => item.id === value.lightPatch,
+            ) || settings.lightPatches[0],
+          levels = {
+            ...parseLightCommand(value.target, settings.fixtures),
+            ...value.lightLevels,
+          },
+          from = structuredClone(lightStateRef.current),
+          duration = Math.max(0, value.duration) * 1000;
+        serialRef.current ||= await requestSerial(
+          patch?.baudRate || settings.baudRate,
+        );
+        const send = async (progress) => {
+          const current = {};
+          settings.fixtures.forEach((fixture) => {
+            const before = from[fixture.id] || {},
+              after = levels[fixture.id] || before;
+            current[fixture.id] = Object.fromEntries(
+              Object.keys(fixture.channels).map((parameter) => [
+                parameter,
+                (Number(before[parameter]) || 0) +
+                  ((Number(after[parameter]) || 0) -
+                    (Number(before[parameter]) || 0)) *
+                    curveValue(value.lightCurve, progress),
+              ]),
+            );
+          });
+          const frames = dmxFrame(settings.fixtures, current);
+          for (const [universe, frame] of Object.entries(frames))
+            await writeSerial(
+              serialRef.current,
+              JSON.stringify({
+                protocol: "dmx",
+                universe: Number(universe),
+                data: frame,
+              }),
+            );
+        };
+        if (!duration) await send(1);
+        else {
+          const started = performance.now(),
+            timer = setInterval(() => {
+              const progress = Math.min(
+                1,
+                (performance.now() - started) / duration,
+              );
+              send(progress).catch((error) => fail(error, value.id));
+              if (progress === 1) clearInterval(timer);
+            }, 1000 / 30);
+          const prior = control.cleanup;
+          control.cleanup = () => {
+            prior?.();
+            clearInterval(timer);
+          };
+        }
+        lightStateRef.current = { ...from, ...levels };
+      }
+      if (value.type === "Network") {
+        if (!value.target) throw new Error("Enter an HTTPS or WebSocket URL.");
+        if (!settings.audition || settings.auditionNetwork) {
+          const send = (payload) =>
+            sendNetwork(value.target, payload, value.method).catch((error) =>
+              fail(error, value.id),
+            );
+          await sendNetwork(value.target, value.payload, value.method);
+          if (value.networkMode !== "Once" && value.duration > 0) {
+            const from = Number(value.payload),
+              to = Number(value.networkEnd);
+            if (
+              value.networkMode === "1D Fade" &&
+              (!Number.isFinite(from) || !Number.isFinite(to))
+            )
+              throw new Error(
+                "A 1D Network Fade needs numeric start and end payloads.",
+              );
+            const started = performance.now(),
+              timer = setInterval(
+                () => {
+                  const progress = Math.min(
+                    1,
+                    (performance.now() - started) / (value.duration * 1000),
+                  );
+                  send(
+                    value.networkMode === "1D Fade"
+                      ? String(from + (to - from) * progress)
+                      : value.payload,
+                  );
+                  if (progress === 1) clearInterval(timer);
+                },
+                1000 / Math.max(1, value.networkFps),
+              );
+            const prior = control.cleanup;
+            control.cleanup = () => {
+              prior?.();
+              clearInterval(timer);
+            };
+          }
+        }
+      }
+      if (value.type === "Timecode") {
+        const startSeconds = timecodeSeconds(
+          value.timecodeStart,
+          value.timecodeFps,
+        );
+        if (
+          value.timecodeMode === "Display" &&
+          (!settings.audition || settings.auditionVideo)
+        )
+          setStage({
+            cueId: value.id,
+            type: "timecode",
+            content: timecodeText(startSeconds, value.timecodeFps),
+            ...visualProps(value),
+          });
+        if (
+          value.timecodeMode === "MIDI Timecode" &&
+          (!settings.audition || settings.auditionTimecode)
+        ) {
+          midiRef.current ||= await requestMidi();
+          const output = midiOutput(value);
+          if (!output) throw new Error("No MIDI output is available.");
+          const fps = Number(value.timecodeFps) || 30,
+            rateCode = fps === 24 ? 0 : fps === 25 ? 1 : fps === 29.97 ? 2 : 3,
+            frame = Math.floor(startSeconds * fps) % Math.round(fps),
+            second = Math.floor(startSeconds) % 60,
+            minute = Math.floor(startSeconds / 60) % 60,
+            hour = Math.floor(startSeconds / 3600) % 24;
+          output.send([
+            240,
+            127,
+            127,
+            1,
+            1,
+            (rateCode << 5) | hour,
+            minute,
+            second,
+            frame,
+            247,
+          ]);
+          let part = 0,
+            mtcTimer;
+          const send = () => {
+            const elapsed =
+                startSeconds + Math.max(0, value.duration - control.left),
+              frame = Math.floor(elapsed * fps) % Math.round(fps),
+              second = Math.floor(elapsed) % 60,
+              minute = Math.floor(elapsed / 60) % 60,
+              hour = Math.floor(elapsed / 3600) % 24,
+              nibbles = [
+                frame & 15,
+                frame >> 4,
+                second & 15,
+                second >> 4,
+                minute & 15,
+                minute >> 4,
+                hour & 15,
+                (hour >> 4) | (rateCode << 1),
+              ];
+            output.send([241, (part << 4) | nibbles[part]]);
+            part = (part + 1) % 8;
+          };
+          const start = () => {
+            send();
+            mtcTimer = setInterval(send, 1000 / (fps * 4));
+          };
+          start();
+          control.suspend = () => clearInterval(mtcTimer);
+          control.resumeDevice = start;
+          const prior = control.cleanup;
+          control.cleanup = () => {
+            prior?.();
+            clearInterval(mtcTimer);
+          };
+        }
+        if (
+          value.timecodeMode === "Linear Timecode" &&
+          (!settings.audition || settings.auditionLtc)
+        ) {
+          const patch = audioPatch(value),
+            ltc = await startLtc(
+              value.timecodeFps,
+              startSeconds,
+              value.volume / 100,
+              patch?.deviceId || settings.audioOutput,
+            );
+          control.gain = ltc.gain;
+          control.suspend = () => ltc.audio.suspend();
+          control.resumeDevice = () => ltc.audio.resume();
+          const prior = control.cleanup;
+          control.cleanup = () => {
+            prior?.();
+            ltc.node.disconnect();
+            ltc.audio.close();
+          };
+        }
       }
       if (["Fade", "Devamp"].includes(value.type) && target) {
-        const targetControl = controllers.current.get(target.id); if (!targetControl) throw new Error(`${target.name} is not running.`); const visual = ["Text", "Video", "Camera"].includes(target.type), enabled = value.type === "Devamp" ? { volume: true, opacity: true } : visual && value.fadeParameters?.volume && !value.fadeParameters?.opacity ? { ...value.fadeParameters, opacity: true } : value.fadeParameters || {}, to = Object.fromEntries(Object.entries(enabled).filter(([, active]) => active).map(([key]) => [key, value.type === "Devamp" ? 0 : value.fadeValues?.[key] ?? value[key]])); if (!Object.keys(to).length) throw new Error("Select at least one Fade parameter."); const from = { ...targetControl.parameters }, started = performance.now(), duration = Math.max(.01, value.duration) * 1000, fade = setInterval(() => { const raw = Math.min(1, (performance.now() - started) / duration), next = interpolateCue(from, to, curveValue(value.fadeCurve, raw), value.fadeRelative); Object.entries(next).forEach(([key, level]) => targetControl.setParameter?.(key, level)); if (raw === 1) { clearInterval(fade); if (value.type === "Devamp") { targetControl.devamp = true; if (targetControl.media) targetControl.media.loop = false; } } }, 16); actionDuration = Math.max(.01, value.duration) + .05; control.cleanup = () => clearInterval(fade);
+        const targetControl = controllers.current.get(target.id);
+        if (!targetControl) throw new Error(`${target.name} is not running.`);
+        const visual = ["Text", "Video", "Camera"].includes(target.type),
+          enabled =
+            value.type === "Devamp"
+              ? { volume: true, opacity: true }
+              : visual &&
+                  value.fadeParameters?.volume &&
+                  !value.fadeParameters?.opacity
+                ? { ...value.fadeParameters, opacity: true }
+                : value.fadeParameters || {},
+          to = Object.fromEntries(
+            Object.entries(enabled)
+              .filter(([, active]) => active)
+              .map(([key]) => [
+                key,
+                value.type === "Devamp"
+                  ? 0
+                  : (value.fadeValues?.[key] ?? value[key]),
+              ]),
+          );
+        if (!Object.keys(to).length)
+          throw new Error("Select at least one Fade parameter.");
+        const from = { ...targetControl.parameters },
+          started = performance.now(),
+          duration = Math.max(0.01, value.duration) * 1000,
+          fade = setInterval(() => {
+            const raw = Math.min(1, (performance.now() - started) / duration),
+              next = interpolateCue(
+                from,
+                to,
+                curveValue(value.fadeCurve, raw),
+                value.fadeRelative,
+              );
+            Object.entries(next).forEach(([key, level]) =>
+              targetControl.setParameter?.(key, level),
+            );
+            if (raw === 1) {
+              clearInterval(fade);
+              if (value.type === "Devamp") {
+                targetControl.devamp = true;
+                if (targetControl.media) targetControl.media.loop = false;
+              }
+            }
+          }, 16);
+        actionDuration = Math.max(0.01, value.duration) + 0.05;
+        control.cleanup = () => clearInterval(fade);
       }
       if (value.type === "Script") {
-        if (!value.target.trim()) throw new Error("Enter JavaScript for this Script cue.");
-        const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-        await new AsyncFunction("api", `"use strict";${value.target}`)({ go: (number) => runCue(findCue(number)), stop: (number) => { const target = findCue(number); if (target) stopCue(target.id); }, stage: (text) => setStage({ cueId: value.id, type: "text", content: text, textColor: value.textColor, backgroundColor: value.backgroundColor, fontSize: value.fontSize, align: value.align }), fetch });
+        if (!value.target.trim())
+          throw new Error("Enter JavaScript for this Script cue.");
+        const AsyncFunction = Object.getPrototypeOf(
+          async function () {},
+        ).constructor;
+        await new AsyncFunction("api", `"use strict";${value.target}`)({
+          go: (number) => runCue(findCue(number)),
+          stop: (number) => {
+            const target = findCue(number);
+            if (target) stopCue(target.id);
+          },
+          stage: (text) =>
+            setStage({
+              cueId: value.id,
+              type: "text",
+              content: text,
+              textColor: value.textColor,
+              backgroundColor: value.backgroundColor,
+              fontSize: value.fontSize,
+              align: value.align,
+            }),
+          fetch,
+        });
       }
-      if (["Audio", "Video"].includes(value.type) && (value.fadeIn || value.fadeOut)) { const timers = [], animate = (from, to, seconds, setter) => { const started = performance.now(), timer = setInterval(() => { const raw = Math.min(1, (performance.now() - started) / Math.max(1, seconds * 1000)); setter(from + (to - from) * curveValue(value.fadeCurve, raw)); if (raw === 1) clearInterval(timer); }, 16); timers.push(timer); }; const setter = value.type === "Audio" ? (level) => control.setVolume(level) : (level) => control.setOpacity(level); const final = value.type === "Audio" ? value.volume / 100 : value.opacity / 100; if (value.fadeIn) { setter(0); animate(0, final, value.fadeIn, setter); } if (value.fadeOut && actionDuration) { const timeout = setTimeout(() => animate(final, 0, value.fadeOut, setter), Math.max(0, actionDuration - value.fadeOut) * 1000); timers.push(timeout); } const prior = control.cleanup; control.cleanup = () => { prior?.(); timers.forEach(clearTimeout); }; }
-    } catch (error) { fail(error, value.id); control.stop(true); finishCue(value, false); return; }
-    if (Number.isFinite(options.loadAt)) { control.seek(options.loadAt); control.pause(); return; }
+      if (
+        ["Audio", "Video"].includes(value.type) &&
+        (value.fadeIn || value.fadeOut)
+      ) {
+        const timers = [],
+          animate = (from, to, seconds, setter) => {
+            const started = performance.now(),
+              timer = setInterval(() => {
+                const raw = Math.min(
+                  1,
+                  (performance.now() - started) / Math.max(1, seconds * 1000),
+                );
+                setter(from + (to - from) * curveValue(value.fadeCurve, raw));
+                if (raw === 1) clearInterval(timer);
+              }, 16);
+            timers.push(timer);
+          };
+        const setter =
+          value.type === "Audio"
+            ? (level) => control.setVolume(level)
+            : (level) => control.setOpacity(level);
+        const final =
+          value.type === "Audio" ? value.volume / 100 : value.opacity / 100;
+        if (value.fadeIn) {
+          setter(0);
+          animate(0, final, value.fadeIn, setter);
+        }
+        if (value.fadeOut && actionDuration) {
+          const timeout = setTimeout(
+            () => animate(final, 0, value.fadeOut, setter),
+            Math.max(0, actionDuration - value.fadeOut) * 1000,
+          );
+          timers.push(timeout);
+        }
+        const prior = control.cleanup;
+        control.cleanup = () => {
+          prior?.();
+          timers.forEach(clearTimeout);
+        };
+      }
+    } catch (error) {
+      fail(error, value.id);
+      control.stop(true);
+      finishCue(value, false);
+      return;
+    }
+    if (Number.isFinite(options.loadAt)) {
+      control.seek(options.loadAt);
+      control.pause();
+      return;
+    }
     const duration = Math.max(0, actionDuration);
-    if (duration > 0 && !(value.type === "Video" && value.holdAtEnd)) control.schedule(duration * 1000, () => { control.stop(); finishCue(value, !preview); });
-    else if (!["Audio", "Video", "Mic", "Camera", "Text", "Timecode"].includes(value.type) && !(value.type === "Group" && control.persistentGroup)) { control.stop(); finishCue(value, !preview); }
+    if (duration > 0 && !(value.type === "Video" && value.holdAtEnd))
+      control.schedule(duration * 1000, () => {
+        control.stop();
+        finishCue(value, !preview);
+      });
+    else if (
+      !["Audio", "Video", "Mic", "Camera", "Text", "Timecode"].includes(
+        value.type,
+      ) &&
+      !(value.type === "Group" && control.persistentGroup)
+    ) {
+      control.stop();
+      finishCue(value, !preview);
+    }
   };
 
-  const go = useCallback(() => { const now = performance.now(); if (now - lastGo.current < settings.minGoInterval * 1000) { setGoProtection("blocked"); setTimeout(() => setGoProtection("protected"), 180); return; } lastGo.current = now; if (settings.minGoInterval) { setGoProtection("protected"); setTimeout(() => setGoProtection(""), settings.minGoInterval * 1000); } const value = shownCues[playIndex]; if (!value) return; runCue(value); const next = value.type === "GoTo" ? findCue(value.target) : nextSibling(list.cues, value); if (next) selectCue(next.id, null); }, [list, playIndex, workspace, settings.minGoInterval]);
-  const toggleCue = (id) => { const control = controllers.current.get(id); if (control?.paused) control.resume(); else control?.pause(); };
+  const go = useCallback(() => {
+    const now = performance.now();
+    if (now - lastGo.current < settings.minGoInterval * 1000) {
+      setGoProtection("blocked");
+      setTimeout(() => setGoProtection("protected"), 180);
+      return;
+    }
+    lastGo.current = now;
+    if (settings.minGoInterval) {
+      setGoProtection("protected");
+      setTimeout(() => setGoProtection(""), settings.minGoInterval * 1000);
+    }
+    const value = shownCues[playIndex];
+    if (!value) return;
+    runCue(value);
+    const next =
+      value.type === "GoTo"
+        ? findCue(value.target)
+        : nextSibling(list.cues, value);
+    if (next) selectCue(next.id, null);
+  }, [list, playIndex, workspace, settings.minGoInterval]);
+  const toggleCue = (id) => {
+    const control = controllers.current.get(id);
+    if (control?.paused) control.resume();
+    else control?.pause();
+  };
   useEffect(() => {
     const onKey = (event) => {
       if ((event.target as Element)?.closest?.("[role='dialog']")) return;
-      if ((event.target as Element)?.closest?.("input,textarea,select,[contenteditable='true']")) return;
+      if (
+        (event.target as Element)?.closest?.(
+          "input,textarea,select,[contenteditable='true']",
+        )
+      )
+        return;
       const key = event.code === "Space" ? "Space" : event.key;
       if (event.metaKey || event.ctrlKey) {
         const command = event.key.toLowerCase();
-        if (command === "s") { event.preventDefault(); saveWorkspace(); return; }
-        if (mode === "show" && ["z", "x", "c", "v", "f", "k", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"].includes(command)) { event.preventDefault(); return; }
-        if (command === "z") { event.preventDefault(); restoreHistory(event.shiftKey ? 1 : -1); return; }
-        if (command === "f") { event.preventDefault(); setSearchOpen(true); return; }
-        if (command === "k") { event.preventDefault(); setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar })); return; }
-        if (command === "a") { event.preventDefault(); setSelectedIds(list.cues.map((item) => item.id)); if (list.cues[0]) { setSelected(list.cues[0].id); setPlayhead(list.cues[0].id); } return; }
-        if (command === "c") { event.preventDefault(); setCopied(selectedCueValues().map((item) => structuredClone(item))); return; }
-        if (command === "x") { event.preventDefault(); setCopied(selectedCueValues().map((item) => structuredClone(item))); removeCue(); return; }
-        if (command === "v") { event.preventDefault(); pasteCue(); return; }
-        const shortcut = { "0": "Group", "1": "Audio", "2": "Mic", "3": "Video", "4": "Camera", "5": "Text", "6": "Light", "7": "Fade", "8": "Network", "9": "MIDI" }[event.key];
-        if (shortcut) { event.preventDefault(); addCue(shortcut); return; }
+        if (command === "s") {
+          event.preventDefault();
+          saveWorkspace();
+          return;
+        }
+        if (
+          mode === "show" &&
+          [
+            "z",
+            "x",
+            "c",
+            "v",
+            "f",
+            "k",
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+          ].includes(command)
+        ) {
+          event.preventDefault();
+          return;
+        }
+        if (command === "z") {
+          event.preventDefault();
+          restoreHistory(event.shiftKey ? 1 : -1);
+          return;
+        }
+        if (command === "f") {
+          event.preventDefault();
+          setSearchOpen(true);
+          return;
+        }
+        if (command === "k") {
+          event.preventDefault();
+          setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar }));
+          return;
+        }
+        if (command === "a") {
+          event.preventDefault();
+          setSelectedIds(list.cues.map((item) => item.id));
+          if (list.cues[0]) {
+            setSelected(list.cues[0].id);
+            setPlayhead(list.cues[0].id);
+          }
+          return;
+        }
+        if (command === "c") {
+          event.preventDefault();
+          setCopied(selectedCueValues().map((item) => structuredClone(item)));
+          return;
+        }
+        if (command === "x") {
+          event.preventDefault();
+          setCopied(selectedCueValues().map((item) => structuredClone(item)));
+          removeCue();
+          return;
+        }
+        if (command === "v") {
+          event.preventDefault();
+          pasteCue();
+          return;
+        }
+        const shortcut = {
+          "0": "Group",
+          "1": "Audio",
+          "2": "Mic",
+          "3": "Video",
+          "4": "Camera",
+          "5": "Text",
+          "6": "Light",
+          "7": "Fade",
+          "8": "Network",
+          "9": "MIDI",
+        }[event.key];
+        if (shortcut) {
+          event.preventDefault();
+          addCue(shortcut);
+          return;
+        }
       }
-      if (["Delete", "Backspace"].includes(event.key) && mode === "edit") { event.preventDefault(); removeCue(); return; }
-      if (key === settings.goKey) { event.preventDefault(); if (!settings.requireKeyUp || goArmed.current) { goArmed.current = false; go(); } }
-      if (key === settings.panicKey) { event.preventDefault(); const now = performance.now(); if (now - lastPanic.current < 450) stopAll(); else panicAll(); lastPanic.current = now; }
-      if (key === settings.pauseKey) { event.preventDefault(); pauseAll(); }
-      if (key === settings.resumeKey) { event.preventDefault(); resumeAll(); }
-      if (key.toLowerCase() === settings.previewKey.toLowerCase()) { event.preventDefault(); runCue(cue, { preview: true }); }
-      if (key.toLowerCase() === settings.stopSelectedKey.toLowerCase()) { event.preventDefault(); if (cue) stopCue(cue.id); }
-      if (key.toLowerCase() === settings.pauseSelectedKey.toLowerCase()) { event.preventDefault(); const control = cue && controllers.current.get(cue.id); if (control?.paused) control.resume(); else control?.pause(); }
-      const token = keyToken(event); allCues().filter((item) => item.hotkeyEnabled && item.hotkey && [key, token].some((value) => item.hotkey.toLowerCase() === value.toLowerCase())).forEach(runCue);
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") { const current = shownCues.findIndex((item) => item.id === selected), offset = event.key === "ArrowDown" ? 1 : -1, next = shownCues[Math.max(0, Math.min(shownCues.length - 1, current + offset))]; if (next) selectCue(next.id, event.shiftKey ? { shiftKey: true } : null); }
+      if (["Delete", "Backspace"].includes(event.key) && mode === "edit") {
+        event.preventDefault();
+        removeCue();
+        return;
+      }
+      if (key === settings.goKey) {
+        event.preventDefault();
+        if (!settings.requireKeyUp || goArmed.current) {
+          goArmed.current = false;
+          go();
+        }
+      }
+      if (key === settings.panicKey) {
+        event.preventDefault();
+        const now = performance.now();
+        if (now - lastPanic.current < 450) stopAll();
+        else panicAll();
+        lastPanic.current = now;
+      }
+      if (key === settings.pauseKey) {
+        event.preventDefault();
+        pauseAll();
+      }
+      if (key === settings.resumeKey) {
+        event.preventDefault();
+        resumeAll();
+      }
+      if (key.toLowerCase() === settings.previewKey.toLowerCase()) {
+        event.preventDefault();
+        runCue(cue, { preview: true });
+      }
+      if (key.toLowerCase() === settings.stopSelectedKey.toLowerCase()) {
+        event.preventDefault();
+        if (cue) stopCue(cue.id);
+      }
+      if (key.toLowerCase() === settings.pauseSelectedKey.toLowerCase()) {
+        event.preventDefault();
+        const control = cue && controllers.current.get(cue.id);
+        if (control?.paused) control.resume();
+        else control?.pause();
+      }
+      const token = keyToken(event);
+      allCues()
+        .filter(
+          (item) =>
+            item.hotkeyEnabled &&
+            item.hotkey &&
+            [key, token].some(
+              (value) => item.hotkey.toLowerCase() === value.toLowerCase(),
+            ),
+        )
+        .forEach(runCue);
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        const current = shownCues.findIndex((item) => item.id === selected),
+          offset = event.key === "ArrowDown" ? 1 : -1,
+          next =
+            shownCues[
+              Math.max(0, Math.min(shownCues.length - 1, current + offset))
+            ];
+        if (next)
+          selectCue(next.id, event.shiftKey ? { shiftKey: true } : null);
+      }
     };
-    const onKeyUp = (event) => { if ((event.target as Element)?.closest?.("input,textarea,select,[contenteditable='true']")) return; const key = event.code === "Space" ? "Space" : event.key, token = keyToken(event); if (key === settings.goKey) goArmed.current = true; allCues().filter((item) => item.secondTriggerOnRelease && item.hotkeyEnabled && item.hotkey && [key, token].some((value) => item.hotkey.toLowerCase() === value.toLowerCase()) && controllers.current.has(item.id)).forEach(runCue); };
-    addEventListener("keydown", onKey); addEventListener("keyup", onKeyUp); return () => { removeEventListener("keydown", onKey); removeEventListener("keyup", onKeyUp); };
+    const onKeyUp = (event) => {
+      if (
+        (event.target as Element)?.closest?.(
+          "input,textarea,select,[contenteditable='true']",
+        )
+      )
+        return;
+      const key = event.code === "Space" ? "Space" : event.key,
+        token = keyToken(event);
+      if (key === settings.goKey) goArmed.current = true;
+      allCues()
+        .filter(
+          (item) =>
+            item.secondTriggerOnRelease &&
+            item.hotkeyEnabled &&
+            item.hotkey &&
+            [key, token].some(
+              (value) => item.hotkey.toLowerCase() === value.toLowerCase(),
+            ) &&
+            controllers.current.has(item.id),
+        )
+        .forEach(runCue);
+    };
+    addEventListener("keydown", onKey);
+    addEventListener("keyup", onKeyUp);
+    return () => {
+      removeEventListener("keydown", onKey);
+      removeEventListener("keyup", onKeyUp);
+    };
   }, [go, list, selected, selectedIds, settings, mode, copied]);
   useEffect(() => {
-    const timer = setInterval(() => { const date = new Date(), now = date.toTimeString().slice(0, 8), token = `${date.toDateString()} ${now}`; allCues().filter((item) => item.wallClockEnabled && item.wallClockDays?.includes(date.getDay()) && item.wallClock && item.wallClock === now.slice(0, item.wallClock.length) && item.lastWallClock !== token.slice(0, token.length - (8 - item.wallClock.length))).forEach((item) => { patchCueById(item.id, { lastWallClock: token.slice(0, token.length - (8 - item.wallClock.length)) }); runCue(item); }); }, 250);
+    const timer = setInterval(() => {
+      const date = new Date(),
+        now = date.toTimeString().slice(0, 8),
+        token = `${date.toDateString()} ${now}`;
+      allCues()
+        .filter(
+          (item) =>
+            item.wallClockEnabled &&
+            item.wallClockDays?.includes(date.getDay()) &&
+            item.wallClock &&
+            item.wallClock === now.slice(0, item.wallClock.length) &&
+            item.lastWallClock !==
+              token.slice(0, token.length - (8 - item.wallClock.length)),
+        )
+        .forEach((item) => {
+          patchCueById(item.id, {
+            lastWallClock: token.slice(
+              0,
+              token.length - (8 - item.wallClock.length),
+            ),
+          });
+          runCue(item);
+        });
+    }, 250);
     return () => clearInterval(timer);
   }, [workspace]);
   useEffect(() => {
     if (!midiRef.current) return;
-    midiRef.current.inputs.forEach((input) => input.onmidimessage = (event) => { const data = [...event.data]; setCapturedMidi(data); allCues().filter((item) => item.midiTriggerEnabled && item.midiTrigger && midiMatches(item.midiTrigger, data)).forEach(runCue); allCues().filter((item) => item.secondTriggerOnRelease && item.midiTriggerEnabled && controllers.current.has(item.id) && data[0] >> 4 === 8 && midiMatches(item.midiTrigger, [data[0] + 16, data[1], "any"])).forEach(runCue); if (data[0] === 241) { const part = data[1] >> 4; mtcRef.current.parts[part] = data[1] & 15; if (part === 7) { const p = mtcRef.current.parts, frame = p[0] | p[1] << 4, second = p[2] | p[3] << 4, minute = p[4] | p[5] << 4, hour = p[6] | (p[7] & 1) << 4, token = [hour, minute, second, frame].map((value) => String(value).padStart(2, "0")).join(":"); if (token !== mtcRef.current.last) { allCues().filter((item) => item.timecodeTriggerEnabled && item.timecodeTrigger === token).forEach(runCue); mtcRef.current.last = token; } } } });
-    return () => midiRef.current?.inputs.forEach((input) => input.onmidimessage = null);
+    midiRef.current.inputs.forEach(
+      (input) =>
+        (input.onmidimessage = (event) => {
+          const data = [...event.data];
+          setCapturedMidi(data);
+          allCues()
+            .filter(
+              (item) =>
+                item.midiTriggerEnabled &&
+                item.midiTrigger &&
+                midiMatches(item.midiTrigger, data),
+            )
+            .forEach(runCue);
+          allCues()
+            .filter(
+              (item) =>
+                item.secondTriggerOnRelease &&
+                item.midiTriggerEnabled &&
+                controllers.current.has(item.id) &&
+                data[0] >> 4 === 8 &&
+                midiMatches(item.midiTrigger, [data[0] + 16, data[1], "any"]),
+            )
+            .forEach(runCue);
+          if (data[0] === 241) {
+            const part = data[1] >> 4;
+            mtcRef.current.parts[part] = data[1] & 15;
+            if (part === 7) {
+              const p = mtcRef.current.parts,
+                frame = p[0] | (p[1] << 4),
+                second = p[2] | (p[3] << 4),
+                minute = p[4] | (p[5] << 4),
+                hour = p[6] | ((p[7] & 1) << 4),
+                token = [hour, minute, second, frame]
+                  .map((value) => String(value).padStart(2, "0"))
+                  .join(":");
+              if (token !== mtcRef.current.last) {
+                allCues()
+                  .filter(
+                    (item) =>
+                      item.timecodeTriggerEnabled &&
+                      item.timecodeTrigger === token,
+                  )
+                  .forEach(runCue);
+                mtcRef.current.last = token;
+              }
+            }
+          }
+        }),
+    );
+    return () =>
+      midiRef.current?.inputs.forEach((input) => (input.onmidimessage = null));
   }, [connections.midi, workspace]);
 
   const addCue = (type, slot = cartSlot, insertAt) => {
     if (mode === "show") return;
-    if (list.kind === "cart" && type === "Group") return fail("Group cues cannot be placed in cue carts.");
-    const id = uid(), template = workspace.templates?.[type] || defaults[type], number = nextCueNumber(), targetCue = list.cues.find((item) => item.id === selected), visualTarget = ["Text", "Video", "Camera"].includes(targetCue?.type);
-    const usedSlots = new Set(list.cues.map((item, index) => item.cartSlot ?? index)), firstSlot = Array.from({ length: list.cues.length + 1 }, (_, index) => index).find((index) => !usedSlots.has(index));
-    const selectedCues = type === "Group" ? list.cues.filter((item) => selectedIds.includes(item.id)) : [], parentId = selectedCues[0]?.parentId || "";
-    const value = { ...baseCue, ...template, id, number, type, parentId, duration: ["Wait", "Fade"].includes(type) ? 1 : 0, ...(type === "Fade" && targetCue ? { target: targetCue.number, fadeParameters: { volume: !visualTarget, opacity: visualTarget } } : {}), ...(type === "MIDI" ? { target: "144,60,64" } : {}), ...(type === "Network" ? { target: settings.networkDefaultUrl, method: settings.networkDefaultMethod } : {}), ...(list.kind === "cart" ? { cartSlot: slot ?? firstSlot, continueMode: "Do not continue" } : {}) };
-    setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => { if (item.id !== list.id) return item; let cues = [...item.cues], index = insertAt == null ? cues.length : Math.max(0, Math.min(cues.length, insertAt)); if (selectedCues.length) { index = Math.min(...selectedCues.map((selected) => cues.findIndex((cue) => cue.id === selected.id))); cues = cues.map((cue) => selectedIds.includes(cue.id) ? { ...cue, parentId: id } : cue); } cues.splice(index, 0, value); return { ...item, cues }; }) }));
-    setSelected(id); setSelectedIds([id]); selectionAnchor.current = id; setPlayhead(id); setCartSlot(null); if (!tabsForCue(value).includes(inspectorTab)) setInspectorTab("Basics"); setOpenMenu(""); setControlMenu("");
+    if (list.kind === "cart" && type === "Group")
+      return fail("Group cues cannot be placed in cue carts.");
+    const id = uid(),
+      template = workspace.templates?.[type] || defaults[type],
+      number = nextCueNumber(),
+      targetCue = list.cues.find((item) => item.id === selected),
+      visualTarget = ["Text", "Video", "Camera"].includes(targetCue?.type);
+    const usedSlots = new Set(
+        list.cues.map((item, index) => item.cartSlot ?? index),
+      ),
+      firstSlot = Array.from(
+        { length: list.cues.length + 1 },
+        (_, index) => index,
+      ).find((index) => !usedSlots.has(index));
+    const selectedCues =
+        type === "Group"
+          ? list.cues.filter((item) => selectedIds.includes(item.id))
+          : [],
+      parentId = selectedCues[0]?.parentId || "";
+    const value = {
+      ...baseCue,
+      ...template,
+      id,
+      number,
+      type,
+      parentId,
+      duration: ["Wait", "Fade"].includes(type) ? 1 : 0,
+      ...(type === "Fade" && targetCue
+        ? {
+            target: targetCue.number,
+            fadeParameters: { volume: !visualTarget, opacity: visualTarget },
+          }
+        : {}),
+      ...(type === "MIDI" ? { target: "144,60,64" } : {}),
+      ...(type === "Network"
+        ? {
+            target: settings.networkDefaultUrl,
+            method: settings.networkDefaultMethod,
+          }
+        : {}),
+      ...(list.kind === "cart"
+        ? { cartSlot: slot ?? firstSlot, continueMode: "Do not continue" }
+        : {}),
+    };
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => {
+        if (item.id !== list.id) return item;
+        let cues = [...item.cues],
+          index =
+            insertAt == null
+              ? cues.length
+              : Math.max(0, Math.min(cues.length, insertAt));
+        if (selectedCues.length) {
+          index = Math.min(
+            ...selectedCues.map((selected) =>
+              cues.findIndex((cue) => cue.id === selected.id),
+            ),
+          );
+          cues = cues.map((cue) =>
+            selectedIds.includes(cue.id) ? { ...cue, parentId: id } : cue,
+          );
+        }
+        cues.splice(index, 0, value);
+        return { ...item, cues };
+      }),
+    }));
+    setSelected(id);
+    setSelectedIds([id]);
+    selectionAnchor.current = id;
+    setPlayhead(id);
+    setCartSlot(null);
+    if (!tabsForCue(value).includes(inspectorTab)) setInspectorTab("Basics");
+    setOpenMenu("");
+    setControlMenu("");
   };
   const removeCue = () => {
-    const ids = [...new Set((selectedIds.length ? selectedIds : cue ? [cue.id] : []).flatMap((id) => [id, ...descendantsOf(list.cues, id).map((cue) => cue.id)]))]; if (!ids.length) return;
-    const index = Math.min(...ids.map((id) => list.cues.findIndex((item) => item.id === id)).filter((value) => value >= 0)), remainingCues = list.cues.filter((item) => !ids.includes(item.id)), next = remainingCues[Math.min(index, remainingCues.length - 1)];
-    ids.forEach(stopCue); setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => item.id === list.id ? { ...item, cues: item.cues.filter((value) => !ids.includes(value.id)) } : item) })); setSelected(next?.id || ""); setSelectedIds(next ? [next.id] : []); setPlayhead(next?.id || ""); setContext(null);
+    const ids = [
+      ...new Set(
+        (selectedIds.length ? selectedIds : cue ? [cue.id] : []).flatMap(
+          (id) => [id, ...descendantsOf(list.cues, id).map((cue) => cue.id)],
+        ),
+      ),
+    ];
+    if (!ids.length) return;
+    const index = Math.min(
+        ...ids
+          .map((id) => list.cues.findIndex((item) => item.id === id))
+          .filter((value) => value >= 0),
+      ),
+      remainingCues = list.cues.filter((item) => !ids.includes(item.id)),
+      next = remainingCues[Math.min(index, remainingCues.length - 1)];
+    ids.forEach(stopCue);
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) =>
+        item.id === list.id
+          ? {
+              ...item,
+              cues: item.cues.filter((value) => !ids.includes(value.id)),
+            }
+          : item,
+      ),
+    }));
+    setSelected(next?.id || "");
+    setSelectedIds(next ? [next.id] : []);
+    setPlayhead(next?.id || "");
+    setContext(null);
   };
   const pasteCue = (values = copied) => {
-    values = Array.isArray(values) ? values : values ? [values] : []; if (!values.length) return;
-    const used = new Set(allCues().map((item) => item.number).filter(Boolean)), increment = Math.max(1, settings.increment); let number = Math.max(increment, ...[...used].map(Number).filter(Number.isFinite)) + increment;
+    values = Array.isArray(values) ? values : values ? [values] : [];
+    if (!values.length) return;
+    const used = new Set(
+        allCues()
+          .map((item) => item.number)
+          .filter(Boolean),
+      ),
+      increment = Math.max(1, settings.increment);
+    let number =
+      Math.max(increment, ...[...used].map(Number).filter(Number.isFinite)) +
+      increment;
     const idMap = Object.fromEntries(values.map((value) => [value.id, uid()]));
-    const copies = values.map((value, index) => { while (used.has(String(number))) number += increment; const nextNumber = settings.autoNumber ? String(number) : ""; used.add(nextNumber); number += increment; return { ...structuredClone(value), id: idMap[value.id], parentId: idMap[value.parentId] || "", number: nextNumber, name: `${value.name} copy`, ...(list.kind === "cart" ? { parentId: "", cartSlot: list.cues.length + index, continueMode: "Do not continue" } : {}) }; });
-    setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => item.id === list.id ? { ...item, cues: [...item.cues, ...copies] } : item) })); setSelected(copies[0].id); setSelectedIds(copies.map((item) => item.id)); setPlayhead(copies[0].id);
+    const copies = values.map((value, index) => {
+      while (used.has(String(number))) number += increment;
+      const nextNumber = settings.autoNumber ? String(number) : "";
+      used.add(nextNumber);
+      number += increment;
+      return {
+        ...structuredClone(value),
+        id: idMap[value.id],
+        parentId: idMap[value.parentId] || "",
+        number: nextNumber,
+        name: `${value.name} copy`,
+        ...(list.kind === "cart"
+          ? {
+              parentId: "",
+              cartSlot: list.cues.length + index,
+              continueMode: "Do not continue",
+            }
+          : {}),
+      };
+    });
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) =>
+        item.id === list.id
+          ? { ...item, cues: [...item.cues, ...copies] }
+          : item,
+      ),
+    }));
+    setSelected(copies[0].id);
+    setSelectedIds(copies.map((item) => item.id));
+    setPlayhead(copies[0].id);
   };
   const saveWorkspace = async (template = false, forceNew = false) => {
-    if (template) { const name = prompt("Workspace template name", workspace.name)?.trim(); if (!name) return; setWorkspace((state) => ({ ...state, workspaceTemplates: [...state.workspaceTemplates.filter((item) => item.name !== name), { id: uid(), name, workspace: { ...structuredClone(state), workspaceTemplates: [] } }] })); }
-    const content = await exportWorkspace(workspace), name = template ? "StageCue-template.json" : "StageCue-workspace.json";
-    try { if (!template && !forceNew && workspaceHandle.current) { const writer = await workspaceHandle.current.createWritable(); await writer.write(content); await writer.close(); return; } if ("showSaveFilePicker" in window) { const handle = await (window as any).showSaveFilePicker({ suggestedName: name, types: [{ description: "StageCue workspace", accept: { "application/json": [".json"] } }] }); const writer = await handle.createWritable(); await writer.write(content); await writer.close(); if (!template) { workspaceHandle.current = handle; setWorkspace((state) => ({ ...state, name: handle.name.replace(/\.json$/i, "") })); } return; } } catch (error) { if ((error as DOMException).name === "AbortError") return; }
-    const anchor = document.createElement("a"); anchor.href = URL.createObjectURL(new Blob([content], { type: "application/json" })); anchor.download = name; anchor.click(); URL.revokeObjectURL(anchor.href);
+    if (template) {
+      const name = prompt("Workspace template name", workspace.name)?.trim();
+      if (!name) return;
+      setWorkspace((state) => ({
+        ...state,
+        workspaceTemplates: [
+          ...state.workspaceTemplates.filter((item) => item.name !== name),
+          {
+            id: uid(),
+            name,
+            workspace: { ...structuredClone(state), workspaceTemplates: [] },
+          },
+        ],
+      }));
+    }
+    const content = await exportWorkspace(workspace),
+      name = template ? "WebCue-template.json" : "WebCue-workspace.json";
+    try {
+      if (!template && !forceNew && workspaceHandle.current) {
+        const writer = await workspaceHandle.current.createWritable();
+        await writer.write(content);
+        await writer.close();
+        return;
+      }
+      if ("showSaveFilePicker" in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: name,
+          types: [
+            {
+              description: "WebCue workspace",
+              accept: { "application/json": [".json"] },
+            },
+          ],
+        });
+        const writer = await handle.createWritable();
+        await writer.write(content);
+        await writer.close();
+        if (!template) {
+          workspaceHandle.current = handle;
+          setWorkspace((state) => ({
+            ...state,
+            name: handle.name.replace(/\.json$/i, ""),
+          }));
+        }
+        return;
+      }
+    } catch (error) {
+      if ((error as DOMException).name === "AbortError") return;
+    }
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(
+      new Blob([content], { type: "application/json" }),
+    );
+    anchor.download = name;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   };
-  const openWorkspace = async () => { try { if ("showOpenFilePicker" in window) { const [handle] = await (window as any).showOpenFilePicker({ types: [{ description: "StageCue workspace", accept: { "application/json": [".json"] } }] }); const value = normalizeWorkspace(await importWorkspaceFiles(JSON.parse(await (await handle.getFile()).text()))), first = value.lists.find((item) => item.id === value.currentList)?.cues[0]?.id || ""; workspaceHandle.current = handle; setWorkspace({ ...value, name: handle.name.replace(/\.json$/i, "") }); setSelected(first); setSelectedIds(first ? [first] : []); setPlayhead(first); return; } } catch (error) { if ((error as DOMException).name === "AbortError") return; } fileRef.current?.click(); };
-  const importWorkspace = async (event) => { const file = event.target.files?.[0]; if (!file) return; try { const value = normalizeWorkspace(await importWorkspaceFiles(JSON.parse(await file.text()))), first = value.lists.find((item) => item.id === value.currentList)?.cues[0]?.id || ""; workspaceHandle.current = null; setWorkspace({ ...value, name: file.name.replace(/\.json$/i, "") }); setSelected(first); setSelectedIds(first ? [first] : []); setPlayhead(first); } catch (error) { fail(error); } };
-  const collectMedia = async () => { try { if (!("showDirectoryPicker" in window)) throw new Error("Folder access is unavailable in this Chromium build."); const directory = await (window as any).showDirectoryPicker({ mode: "readwrite" }), mediaDirectory = await directory.getDirectoryHandle("Media", { create: true }); workspaceDirectory.current = directory; for (const value of allCues().filter((item) => item.fileKey && item.fileName)) { const file = await loadFile(value.fileKey); if (!file) continue; const handle = await mediaDirectory.getFileHandle(value.fileName, { create: true }), writer = await handle.createWritable(); await writer.write(file); await writer.close(); } setNotice("Workspace media was collected into the selected folder."); } catch (error) { if ((error as DOMException).name !== "AbortError") fail(error); } };
-  const relinkMissingMedia = async () => { const missing = []; for (const value of allCues().filter((item) => item.fileKey && item.fileName)) if (!await loadFile(value.fileKey)) missing.push(value); if (!missing.length) return setNotice("No missing media files were found."); try { const handles = await (window as any).showOpenFilePicker({ multiple: true, types: [{ description: "Media files", accept: { "audio/*": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"], "video/*": [".mp4", ".mov", ".webm"], "audio/midi": [".mid", ".midi"] } }] }), files = await Promise.all(handles.map((handle) => handle.getFile())); let count = 0; for (const value of missing) { const file = files.find((item) => item.name === value.fileName); if (file) { await storeFile(value.fileKey, file); count++; } } setNotice(`${count} of ${missing.length} missing media files were relinked.`); } catch (error) { if ((error as DOMException).name !== "AbortError") fail(error); } };
+  const openWorkspace = async () => {
+    try {
+      if ("showOpenFilePicker" in window) {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: "WebCue workspace",
+              accept: { "application/json": [".json"] },
+            },
+          ],
+        });
+        const value = normalizeWorkspace(
+            await importWorkspaceFiles(
+              JSON.parse(await (await handle.getFile()).text()),
+            ),
+          ),
+          first =
+            value.lists.find((item) => item.id === value.currentList)?.cues[0]
+              ?.id || "";
+        workspaceHandle.current = handle;
+        setWorkspace({ ...value, name: handle.name.replace(/\.json$/i, "") });
+        setSelected(first);
+        setSelectedIds(first ? [first] : []);
+        setPlayhead(first);
+        return;
+      }
+    } catch (error) {
+      if ((error as DOMException).name === "AbortError") return;
+    }
+    fileRef.current?.click();
+  };
+  const importWorkspace = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const value = normalizeWorkspace(
+          await importWorkspaceFiles(JSON.parse(await file.text())),
+        ),
+        first =
+          value.lists.find((item) => item.id === value.currentList)?.cues[0]
+            ?.id || "";
+      workspaceHandle.current = null;
+      setWorkspace({ ...value, name: file.name.replace(/\.json$/i, "") });
+      setSelected(first);
+      setSelectedIds(first ? [first] : []);
+      setPlayhead(first);
+    } catch (error) {
+      fail(error);
+    }
+  };
+  const collectMedia = async () => {
+    try {
+      if (!("showDirectoryPicker" in window))
+        throw new Error("Folder access is unavailable in this Chromium build.");
+      const directory = await (window as any).showDirectoryPicker({
+          mode: "readwrite",
+        }),
+        mediaDirectory = await directory.getDirectoryHandle("Media", {
+          create: true,
+        });
+      workspaceDirectory.current = directory;
+      for (const value of allCues().filter(
+        (item) => item.fileKey && item.fileName,
+      )) {
+        const file = await loadFile(value.fileKey);
+        if (!file) continue;
+        const handle = await mediaDirectory.getFileHandle(value.fileName, {
+            create: true,
+          }),
+          writer = await handle.createWritable();
+        await writer.write(file);
+        await writer.close();
+      }
+      setNotice("Workspace media was collected into the selected folder.");
+    } catch (error) {
+      if ((error as DOMException).name !== "AbortError") fail(error);
+    }
+  };
+  const relinkMissingMedia = async () => {
+    const missing = [];
+    for (const value of allCues().filter(
+      (item) => item.fileKey && item.fileName,
+    ))
+      if (!(await loadFile(value.fileKey))) missing.push(value);
+    if (!missing.length) return setNotice("No missing media files were found.");
+    try {
+      const handles = await (window as any).showOpenFilePicker({
+          multiple: true,
+          types: [
+            {
+              description: "Media files",
+              accept: {
+                "audio/*": [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"],
+                "video/*": [".mp4", ".mov", ".webm"],
+                "audio/midi": [".mid", ".midi"],
+              },
+            },
+          ],
+        }),
+        files = await Promise.all(handles.map((handle) => handle.getFile()));
+      let count = 0;
+      for (const value of missing) {
+        const file = files.find((item) => item.name === value.fileName);
+        if (file) {
+          await storeFile(value.fileKey, file);
+          count++;
+        }
+      }
+      setNotice(
+        `${count} of ${missing.length} missing media files were relinked.`,
+      );
+    } catch (error) {
+      if ((error as DOMException).name !== "AbortError") fail(error);
+    }
+  };
   const importMedia = async (event) => {
-    const file = event.target.files?.[0]; if (!file || !cue) return; const previous = preloaded.current.get(cue.id); if (previous?.url) URL.revokeObjectURL(previous.url); preloaded.current.delete(cue.id); await storeFile(cue.id, file); const patch = { fileKey: cue.id, fileName: file.name };
-    if (cue.type === "Audio") { const analysis = await analyzeAudio(file); Object.assign(patch, { duration: analysis.duration, trimStart: 0, trimEnd: analysis.duration, sourceChannels: analysis.channels, waveform: analysis.waveform, audioRoutes: Array.from({ length: analysis.channels }, (_, index) => [index + 1]) }); }
-    else if (cue.type === "Video") { const media = document.createElement("video"), url = URL.createObjectURL(file); media.src = url; await new Promise((resolve) => { media.onloadedmetadata = resolve; media.onerror = resolve; }); if (Number.isFinite(media.duration)) Object.assign(patch, { duration: Math.round(media.duration * 100) / 100, trimStart: 0, trimEnd: Math.round(media.duration * 100) / 100 }); URL.revokeObjectURL(url); }
-    patchCue(patch); event.target.value = "";
+    const file = event.target.files?.[0];
+    if (!file || !cue) return;
+    const previous = preloaded.current.get(cue.id);
+    if (previous?.url) URL.revokeObjectURL(previous.url);
+    preloaded.current.delete(cue.id);
+    await storeFile(cue.id, file);
+    const patch = { fileKey: cue.id, fileName: file.name };
+    if (cue.type === "Audio") {
+      const analysis = await analyzeAudio(file);
+      Object.assign(patch, {
+        duration: analysis.duration,
+        trimStart: 0,
+        trimEnd: analysis.duration,
+        sourceChannels: analysis.channels,
+        waveform: analysis.waveform,
+        audioRoutes: Array.from({ length: analysis.channels }, (_, index) => [
+          index + 1,
+        ]),
+      });
+    } else if (cue.type === "Video") {
+      const media = document.createElement("video"),
+        url = URL.createObjectURL(file);
+      media.src = url;
+      await new Promise((resolve) => {
+        media.onloadedmetadata = resolve;
+        media.onerror = resolve;
+      });
+      if (Number.isFinite(media.duration))
+        Object.assign(patch, {
+          duration: Math.round(media.duration * 100) / 100,
+          trimStart: 0,
+          trimEnd: Math.round(media.duration * 100) / 100,
+        });
+      URL.revokeObjectURL(url);
+    }
+    patchCue(patch);
+    event.target.value = "";
   };
-  const newList = (kind) => { const id = uid(); setWorkspace((state) => ({ ...state, currentList: id, lists: [...state.lists, { id, name: kind === "cart" ? "Cue Cart" : `Cue List ${state.lists.length + 1}`, kind, cues: [] }] })); setSelected(""); setSelectedIds([]); setPlayhead(""); };
-  const selectList = (value) => { const first = value.cues[0]?.id || ""; setWorkspace((state) => ({ ...state, currentList: value.id })); setSelected(first); setSelectedIds(first ? [first] : []); setPlayhead(first); setContext(null); };
-  const duplicateList = (item) => { const id = uid(), used = new Set(allCues().map((cue) => cue.number).filter(Boolean)); let number = Math.max(1, settings.increment); const copy = { ...item, id, name: `${item.name} copy`, cues: item.cues.map((value) => { while (used.has(String(number))) number += Math.max(1, settings.increment); const next = settings.autoNumber ? String(number) : ""; used.add(next); number += Math.max(1, settings.increment); return { ...value, id: uid(), number: next }; }) }, first = copy.cues[0]?.id || ""; setWorkspace((state) => ({ ...state, currentList: id, lists: [...state.lists, copy] })); setSelected(first); setSelectedIds(first ? [first] : []); setPlayhead(first); };
-  const renameList = (item) => { const name = prompt("List or cart name", item.name)?.trim(); if (name) setWorkspace((state) => ({ ...state, lists: state.lists.map((value) => value.id === item.id ? { ...value, name } : value) })); };
-  const deleteList = (item) => { if (workspace.lists.length === 1) return; const next = workspace.lists.find((value) => value.id !== item.id), first = next.cues[0]?.id || ""; setWorkspace((state) => ({ ...state, currentList: next.id, lists: state.lists.filter((value) => value.id !== item.id) })); setSelected(first); setSelectedIds(first ? [first] : []); setPlayhead(first); };
-  const restoreHistory = (offset) => { const index = historyIndex.current + offset; if (!historyRef.current[index]) return; restoringHistory.current = true; historyIndex.current = index; setWorkspace(structuredClone(historyRef.current[index])); setHistoryStatus({ undo: index > 0, redo: index < historyRef.current.length - 1 }); };
-  const moveCue = (offset) => { if (!cue) return; const ids = new Set(selectedCueValues().map((item) => item.id)); setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => { if (item.id !== list.id) return item; const cues = [...item.cues]; if (offset < 0) { for (let index = 1; index < cues.length; index++) if (ids.has(cues[index].id) && !ids.has(cues[index - 1].id)) [cues[index - 1], cues[index]] = [cues[index], cues[index - 1]]; } else { for (let index = cues.length - 2; index >= 0; index--) if (ids.has(cues[index].id) && !ids.has(cues[index + 1].id)) [cues[index], cues[index + 1]] = [cues[index + 1], cues[index]]; } return { ...item, cues }; }) })); };
-  const moveCueTo = (from, to, before = true) => { if (from === to) return; setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => { if (item.id !== list.id) return item; const sourceCue = item.cues.find((cue) => cue.id === from), targetCue = item.cues.find((cue) => cue.id === to); if (!sourceCue || !targetCue || descendantsOf(item.cues, from).some((cue) => cue.id === to)) return item; const blockIds = new Set([from, ...descendantsOf(item.cues, from).map((cue) => cue.id)]), block = item.cues.filter((cue) => blockIds.has(cue.id)), cues = item.cues.filter((cue) => !blockIds.has(cue.id)), target = cues.findIndex((cue) => cue.id === to); if (target < 0) return item; block[0] = { ...block[0], parentId: targetCue.parentId || "" }; cues.splice(target + (before ? 0 : 1), 0, ...block); return { ...item, cues }; }) })); };
-  const addCueAt = (type, to, before) => { const target = list.cues.findIndex((item) => item.id === to); addCue(type, null, target + (before ? 0 : 1)); };
-  const moveCartCue = (id, slot) => setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => { if (item.id !== list.id) return item; const source = item.cues.find((cue) => cue.id === id), target = item.cues.find((cue, index) => (cue.cartSlot ?? index) === slot); if (!source) return item; const sourceSlot = source.cartSlot ?? item.cues.indexOf(source); return { ...item, cues: item.cues.map((cue) => cue.id === source.id ? { ...cue, cartSlot: slot } : cue.id === target?.id ? { ...cue, cartSlot: sourceSlot } : cue) }; }) }));
-  const renumberCues = () => setWorkspace((state) => { const used = new Set(state.lists.filter((item) => item.id !== list.id).flatMap((item) => item.cues.map((cue) => cue.number)).filter(Boolean)); let number = Math.max(1, settings.increment); return { ...state, lists: state.lists.map((item) => item.id !== list.id ? item : { ...item, cues: item.cues.map((cue) => { while (used.has(String(number))) number += Math.max(1, settings.increment); const next = String(number); used.add(next); number += Math.max(1, settings.increment); return { ...cue, number: next }; }) }) }; });
-  const finishRecording = () => { if (!recording?.events.length) return setRecording(null); const groupId = uid(), groupNumber = nextCueNumber(), group = { ...baseCue, ...workspace.templates.Group, id: groupId, number: groupNumber, type: "Group", name: "Recorded cue sequence", groupMode: "Timeline" }, starts = recording.events.map((event, index) => { const target = allCues().find((cue) => cue.id === event.cueId); return { ...baseCue, ...workspace.templates.Start, id: uid(), parentId: groupId, number: `${groupNumber}.${index + 1}`, type: "Start", name: `Start ${target?.name || "cue"}`, target: target?.number || "", pre: event.at / 1000 }; }); setWorkspace((state) => ({ ...state, lists: state.lists.map((item) => item.id === list.id ? { ...item, cues: [...item.cues, group, ...starts] } : item) })); setSelected(groupId); setSelectedIds([groupId]); setPlayhead(groupId); setRecording(null); };
-  const propertyGroups = { timing: ["pre", "duration", "post", "continueMode", "rate", "loops", "trimStart", "trimEnd", "slices", "fadeIn", "fadeOut"], triggers: ["hotkey", "hotkeyEnabled", "wallClock", "wallClockEnabled", "wallClockDays", "midiTrigger", "midiTriggerEnabled", "timecodeTrigger", "timecodeTriggerEnabled", "secondTrigger", "secondTriggerOnRelease", "fadeOthers", "duckOthers"], appearance: ["color", "secondColor", "secondColorAfterStart", "textColor", "backgroundColor", "fontSize", "fontFamily", "fontWeight", "align", "textWidth", "lineHeight", "fit", "opacity", "x", "y", "scale", "rotation", "rotateX", "rotateY", "anchorX", "anchorY", "cropTop", "cropRight", "cropBottom", "cropLeft", "maskRadius", "zIndex", "blendMode", "videoEffects"], action: Object.keys(baseCue).filter((key) => !["id", "number", "name", "parentId", "notes"].includes(key)) };
-  const applyPropertyPaste = (groups = pasteProperties) => { if (!cue || !copied[0]) return; const keys = new Set(groups.flatMap((group) => propertyGroups[group] || [])); patchCue(Object.fromEntries(Object.entries(copied[0]).filter(([key]) => keys.has(key)))); setPropertyPasteOpen(false); };
-  const popOutInspector = () => { if (!cue) return; const popup = window.open("about:blank", `stagecue-inspector-${cue.id}`, "popup,width=900,height=560"); if (!popup) return fail("The inspector window was blocked."); const frame = popup.document.createElement("iframe"); frame.src = `${location.href.split("#")[0]}#inspector=${cue.id}`; frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0"; popup.document.body.style.margin = "0"; popup.document.body.append(frame); };
+  const newList = (kind) => {
+    const id = uid();
+    setWorkspace((state) => ({
+      ...state,
+      currentList: id,
+      lists: [
+        ...state.lists,
+        {
+          id,
+          name:
+            kind === "cart" ? "Cue Cart" : `Cue List ${state.lists.length + 1}`,
+          kind,
+          cues: [],
+        },
+      ],
+    }));
+    setSelected("");
+    setSelectedIds([]);
+    setPlayhead("");
+  };
+  const selectList = (value) => {
+    const first = value.cues[0]?.id || "";
+    setWorkspace((state) => ({ ...state, currentList: value.id }));
+    setSelected(first);
+    setSelectedIds(first ? [first] : []);
+    setPlayhead(first);
+    setContext(null);
+  };
+  const duplicateList = (item) => {
+    const id = uid(),
+      used = new Set(
+        allCues()
+          .map((cue) => cue.number)
+          .filter(Boolean),
+      );
+    let number = Math.max(1, settings.increment);
+    const copy = {
+        ...item,
+        id,
+        name: `${item.name} copy`,
+        cues: item.cues.map((value) => {
+          while (used.has(String(number)))
+            number += Math.max(1, settings.increment);
+          const next = settings.autoNumber ? String(number) : "";
+          used.add(next);
+          number += Math.max(1, settings.increment);
+          return { ...value, id: uid(), number: next };
+        }),
+      },
+      first = copy.cues[0]?.id || "";
+    setWorkspace((state) => ({
+      ...state,
+      currentList: id,
+      lists: [...state.lists, copy],
+    }));
+    setSelected(first);
+    setSelectedIds(first ? [first] : []);
+    setPlayhead(first);
+  };
+  const renameList = (item) => {
+    const name = prompt("List or cart name", item.name)?.trim();
+    if (name)
+      setWorkspace((state) => ({
+        ...state,
+        lists: state.lists.map((value) =>
+          value.id === item.id ? { ...value, name } : value,
+        ),
+      }));
+  };
+  const deleteList = (item) => {
+    if (workspace.lists.length === 1) return;
+    const next = workspace.lists.find((value) => value.id !== item.id),
+      first = next.cues[0]?.id || "";
+    setWorkspace((state) => ({
+      ...state,
+      currentList: next.id,
+      lists: state.lists.filter((value) => value.id !== item.id),
+    }));
+    setSelected(first);
+    setSelectedIds(first ? [first] : []);
+    setPlayhead(first);
+  };
+  const restoreHistory = (offset) => {
+    const index = historyIndex.current + offset;
+    if (!historyRef.current[index]) return;
+    restoringHistory.current = true;
+    historyIndex.current = index;
+    setWorkspace(structuredClone(historyRef.current[index]));
+    setHistoryStatus({
+      undo: index > 0,
+      redo: index < historyRef.current.length - 1,
+    });
+  };
+  const moveCue = (offset) => {
+    if (!cue) return;
+    const ids = new Set(selectedCueValues().map((item) => item.id));
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => {
+        if (item.id !== list.id) return item;
+        const cues = [...item.cues];
+        if (offset < 0) {
+          for (let index = 1; index < cues.length; index++)
+            if (ids.has(cues[index].id) && !ids.has(cues[index - 1].id))
+              [cues[index - 1], cues[index]] = [cues[index], cues[index - 1]];
+        } else {
+          for (let index = cues.length - 2; index >= 0; index--)
+            if (ids.has(cues[index].id) && !ids.has(cues[index + 1].id))
+              [cues[index], cues[index + 1]] = [cues[index + 1], cues[index]];
+        }
+        return { ...item, cues };
+      }),
+    }));
+  };
+  const moveCueTo = (from, to, before = true) => {
+    if (from === to) return;
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => {
+        if (item.id !== list.id) return item;
+        const sourceCue = item.cues.find((cue) => cue.id === from),
+          targetCue = item.cues.find((cue) => cue.id === to);
+        if (
+          !sourceCue ||
+          !targetCue ||
+          descendantsOf(item.cues, from).some((cue) => cue.id === to)
+        )
+          return item;
+        const blockIds = new Set([
+            from,
+            ...descendantsOf(item.cues, from).map((cue) => cue.id),
+          ]),
+          block = item.cues.filter((cue) => blockIds.has(cue.id)),
+          cues = item.cues.filter((cue) => !blockIds.has(cue.id)),
+          target = cues.findIndex((cue) => cue.id === to);
+        if (target < 0) return item;
+        block[0] = { ...block[0], parentId: targetCue.parentId || "" };
+        cues.splice(target + (before ? 0 : 1), 0, ...block);
+        return { ...item, cues };
+      }),
+    }));
+  };
+  const addCueAt = (type, to, before) => {
+    const target = list.cues.findIndex((item) => item.id === to);
+    addCue(type, null, target + (before ? 0 : 1));
+  };
+  const moveCartCue = (id, slot) =>
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) => {
+        if (item.id !== list.id) return item;
+        const source = item.cues.find((cue) => cue.id === id),
+          target = item.cues.find(
+            (cue, index) => (cue.cartSlot ?? index) === slot,
+          );
+        if (!source) return item;
+        const sourceSlot = source.cartSlot ?? item.cues.indexOf(source);
+        return {
+          ...item,
+          cues: item.cues.map((cue) =>
+            cue.id === source.id
+              ? { ...cue, cartSlot: slot }
+              : cue.id === target?.id
+                ? { ...cue, cartSlot: sourceSlot }
+                : cue,
+          ),
+        };
+      }),
+    }));
+  const renumberCues = () =>
+    setWorkspace((state) => {
+      const used = new Set(
+        state.lists
+          .filter((item) => item.id !== list.id)
+          .flatMap((item) => item.cues.map((cue) => cue.number))
+          .filter(Boolean),
+      );
+      let number = Math.max(1, settings.increment);
+      return {
+        ...state,
+        lists: state.lists.map((item) =>
+          item.id !== list.id
+            ? item
+            : {
+                ...item,
+                cues: item.cues.map((cue) => {
+                  while (used.has(String(number)))
+                    number += Math.max(1, settings.increment);
+                  const next = String(number);
+                  used.add(next);
+                  number += Math.max(1, settings.increment);
+                  return { ...cue, number: next };
+                }),
+              },
+        ),
+      };
+    });
+  const finishRecording = () => {
+    if (!recording?.events.length) return setRecording(null);
+    const groupId = uid(),
+      groupNumber = nextCueNumber(),
+      group = {
+        ...baseCue,
+        ...workspace.templates.Group,
+        id: groupId,
+        number: groupNumber,
+        type: "Group",
+        name: "Recorded cue sequence",
+        groupMode: "Timeline",
+      },
+      starts = recording.events.map((event, index) => {
+        const target = allCues().find((cue) => cue.id === event.cueId);
+        return {
+          ...baseCue,
+          ...workspace.templates.Start,
+          id: uid(),
+          parentId: groupId,
+          number: `${groupNumber}.${index + 1}`,
+          type: "Start",
+          name: `Start ${target?.name || "cue"}`,
+          target: target?.number || "",
+          pre: event.at / 1000,
+        };
+      });
+    setWorkspace((state) => ({
+      ...state,
+      lists: state.lists.map((item) =>
+        item.id === list.id
+          ? { ...item, cues: [...item.cues, group, ...starts] }
+          : item,
+      ),
+    }));
+    setSelected(groupId);
+    setSelectedIds([groupId]);
+    setPlayhead(groupId);
+    setRecording(null);
+  };
+  const propertyGroups = {
+    timing: [
+      "pre",
+      "duration",
+      "post",
+      "continueMode",
+      "rate",
+      "loops",
+      "trimStart",
+      "trimEnd",
+      "slices",
+      "fadeIn",
+      "fadeOut",
+    ],
+    triggers: [
+      "hotkey",
+      "hotkeyEnabled",
+      "wallClock",
+      "wallClockEnabled",
+      "wallClockDays",
+      "midiTrigger",
+      "midiTriggerEnabled",
+      "timecodeTrigger",
+      "timecodeTriggerEnabled",
+      "secondTrigger",
+      "secondTriggerOnRelease",
+      "fadeOthers",
+      "duckOthers",
+    ],
+    appearance: [
+      "color",
+      "secondColor",
+      "secondColorAfterStart",
+      "textColor",
+      "backgroundColor",
+      "fontSize",
+      "fontFamily",
+      "fontWeight",
+      "align",
+      "textWidth",
+      "lineHeight",
+      "fit",
+      "opacity",
+      "x",
+      "y",
+      "scale",
+      "rotation",
+      "rotateX",
+      "rotateY",
+      "anchorX",
+      "anchorY",
+      "cropTop",
+      "cropRight",
+      "cropBottom",
+      "cropLeft",
+      "maskRadius",
+      "zIndex",
+      "blendMode",
+      "videoEffects",
+    ],
+    action: Object.keys(baseCue).filter(
+      (key) => !["id", "number", "name", "parentId", "notes"].includes(key),
+    ),
+  };
+  const applyPropertyPaste = (groups = pasteProperties) => {
+    if (!cue || !copied[0]) return;
+    const keys = new Set(
+      groups.flatMap((group) => propertyGroups[group] || []),
+    );
+    patchCue(
+      Object.fromEntries(
+        Object.entries(copied[0]).filter(([key]) => keys.has(key)),
+      ),
+    );
+    setPropertyPasteOpen(false);
+  };
+  const popOutInspector = () => {
+    if (!cue) return;
+    const popup = window.open(
+      "about:blank",
+      `webcue-inspector-${cue.id}`,
+      "popup,width=900,height=560",
+    );
+    if (!popup) return fail("The inspector window was blocked.");
+    const frame = popup.document.createElement("iframe");
+    frame.src = `${location.href.split("#")[0]}#inspector=${cue.id}`;
+    frame.style.cssText =
+      "position:fixed;inset:0;width:100%;height:100%;border:0";
+    popup.document.body.style.margin = "0";
+    popup.document.body.append(frame);
+  };
   const menuAction = (item) => {
     if (cueTypes.some(([name]) => name === item)) return addCue(item);
-    if (item === "New Workspace") { stopAll(); workspaceHandle.current = null; setWorkspace(initial); clearSelection(); setPlayhead(""); }
+    if (item === "New Workspace") {
+      stopAll();
+      workspaceHandle.current = null;
+      setWorkspace(initial);
+      clearSelection();
+      setPlayhead("");
+    }
     if (item === "Open Workspace...") openWorkspace();
-    if (item === "Save") saveWorkspace(); if (item === "Save As...") saveWorkspace(false, true); if (item === "Save As Template") saveWorkspace(true);
+    if (item === "Save") saveWorkspace();
+    if (item === "Save As...") saveWorkspace(false, true);
+    if (item === "Save As Template") saveWorkspace(true);
     if (item === "Workspace Settings") setSettingsOpen(true);
-    if (item === "Workspace Files") { setStatusTab("Assets"); setStatusOpen(true); }
-    if (item === "Undo") restoreHistory(-1); if (item === "Redo") restoreHistory(1);
-    if (item === "Copy") setCopied(selectedCueValues().map((value) => structuredClone(value))); if (item === "Cut" && cue) { setCopied(selectedCueValues().map((value) => structuredClone(value))); removeCue(); } if (item === "Paste") pasteCue(); if (item === "Duplicate") pasteCue(selectedCueValues()); if (item === "Paste Cue Properties..." && cue && copied[0]) setPropertyPasteOpen(true); if (item === "Paste and Match Style") applyPropertyPaste(["appearance"]); if (item === "Select All") { const first = list.cues[0]?.id || ""; setSelectedIds(list.cues.map((cue) => cue.id)); setSelected(first); setPlayhead(first); } if (item === "Delete") removeCue();
-    if (item === "Move Cue Up") moveCue(-1); if (item === "Move Cue Down") moveCue(1);
+    if (item === "Workspace Files") {
+      setStatusTab("Assets");
+      setStatusOpen(true);
+    }
+    if (item === "Undo") restoreHistory(-1);
+    if (item === "Redo") restoreHistory(1);
+    if (item === "Copy")
+      setCopied(selectedCueValues().map((value) => structuredClone(value)));
+    if (item === "Cut" && cue) {
+      setCopied(selectedCueValues().map((value) => structuredClone(value)));
+      removeCue();
+    }
+    if (item === "Paste") pasteCue();
+    if (item === "Duplicate") pasteCue(selectedCueValues());
+    if (item === "Paste Cue Properties..." && cue && copied[0])
+      setPropertyPasteOpen(true);
+    if (item === "Paste and Match Style") applyPropertyPaste(["appearance"]);
+    if (item === "Select All") {
+      const first = list.cues[0]?.id || "";
+      setSelectedIds(list.cues.map((cue) => cue.id));
+      setSelected(first);
+      setPlayhead(first);
+    }
+    if (item === "Delete") removeCue();
+    if (item === "Move Cue Up") moveCue(-1);
+    if (item === "Move Cue Down") moveCue(1);
     if (item === "Renumber cues") renumberCues();
-    if (item === "Delete cue numbers") setWorkspace((state) => ({ ...state, lists: state.lists.map((value) => value.id === list.id ? { ...value, cues: value.cues.map((entry) => ({ ...entry, number: "" })) } : value) }));
-    if (item === "Jump to selected cue target" && cue) { const target = findCue(cue.target); if (target) selectCue(target.id, null); }
-    if (item === "Toggle audition mode") patchSettings({ audition: !settings.audition }); if (item === "Open device settings") { setSettingsPage("Audio"); setSettingsOpen(true); }
-    if (item === "Live fade preview") setLiveFadePreview((value) => !value); if (item === "Highlight related cues") setHighlightRelated((value) => !value);
-    if (item === "Collect workspace media...") collectMedia(); if (item === "Relink missing media...") relinkMissingMedia();
-    if (item === "Workspace Status" || item === "Warnings") { setStatusTab(item === "Warnings" ? "Warnings" : statusTab); setStatusOpen(true); }
-    if (item === "Record cue sequence...") setRecording({ started: performance.now(), events: [] });
-    if (item === "Load to time..." && cue) { const seconds = Number(prompt("Load selected cue to time in seconds", "0")); if (Number.isFinite(seconds)) { const control = controllers.current.get(cue.id); if (control) { control.seek?.(seconds); control.pause?.(); } else runCue(cue, { preview: true, loadAt: seconds }); } }
-    if (item === "Enter Edit Mode") setMode("edit"); if (item === "Enter Show Mode") setMode("show"); if (item === "Enter Full Screen") document.documentElement.requestFullscreen?.().catch(fail);
-    if (item === "Inspector") setVisible((value) => ({ ...value, inspector: !value.inspector })); if (item === "Pop Out Inspector") popOutInspector(); if (item === "Toolbox") setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar })); if (item.startsWith("GO Button")) setVisible((value) => ({ ...value, masthead: !value.masthead })); if (item.startsWith("Lists /")) setVisible((value) => ({ ...value, sidebar: !value.sidebar }));
+    if (item === "Delete cue numbers")
+      setWorkspace((state) => ({
+        ...state,
+        lists: state.lists.map((value) =>
+          value.id === list.id
+            ? {
+                ...value,
+                cues: value.cues.map((entry) => ({ ...entry, number: "" })),
+              }
+            : value,
+        ),
+      }));
+    if (item === "Jump to selected cue target" && cue) {
+      const target = findCue(cue.target);
+      if (target) selectCue(target.id, null);
+    }
+    if (item === "Toggle audition mode")
+      patchSettings({ audition: !settings.audition });
+    if (item === "Open device settings") {
+      setSettingsPage("Audio");
+      setSettingsOpen(true);
+    }
+    if (item === "Live fade preview") setLiveFadePreview((value) => !value);
+    if (item === "Highlight related cues")
+      setHighlightRelated((value) => !value);
+    if (item === "Collect workspace media...") collectMedia();
+    if (item === "Relink missing media...") relinkMissingMedia();
+    if (item === "Workspace Status" || item === "Warnings") {
+      setStatusTab(item === "Warnings" ? "Warnings" : statusTab);
+      setStatusOpen(true);
+    }
+    if (item === "Record cue sequence...")
+      setRecording({ started: performance.now(), events: [] });
+    if (item === "Load to time..." && cue) {
+      const seconds = Number(
+        prompt("Load selected cue to time in seconds", "0"),
+      );
+      if (Number.isFinite(seconds)) {
+        const control = controllers.current.get(cue.id);
+        if (control) {
+          control.seek?.(seconds);
+          control.pause?.();
+        } else runCue(cue, { preview: true, loadAt: seconds });
+      }
+    }
+    if (item === "Enter Edit Mode") setMode("edit");
+    if (item === "Enter Show Mode") setMode("show");
+    if (item === "Enter Full Screen")
+      document.documentElement.requestFullscreen?.().catch(fail);
+    if (item === "Inspector")
+      setVisible((value) => ({ ...value, inspector: !value.inspector }));
+    if (item === "Pop Out Inspector") popOutInspector();
+    if (item === "Toolbox")
+      setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar }));
+    if (item.startsWith("GO Button"))
+      setVisible((value) => ({ ...value, masthead: !value.masthead }));
+    if (item.startsWith("Lists /"))
+      setVisible((value) => ({ ...value, sidebar: !value.sidebar }));
     if (item === "Select cue...") setSelectCueOpen(true);
-    if (["Select next", "Select previous"].includes(item)) { const offset = item.endsWith("next") ? 1 : -1, next = shownCues[Math.max(0, Math.min(shownCues.length - 1, shownCues.findIndex((value) => value.id === selected) + offset))]; if (next) selectCue(next.id, null); }
-    if (["Select next inspector tab", "Select previous inspector tab"].includes(item) && cue) { const tabs = tabsForCue(cue), offset = item.includes("next") ? 1 : -1, index = tabs.indexOf(inspectorTab); setInspectorTab(tabs[(index + offset + tabs.length) % tabs.length]); }
-    if (item === "Move playhead to selected cue" && cue) selectCue(cue.id, null); if (["Move playhead to next cue", "Move playhead to previous cue"].includes(item)) { const offset = item.includes("next") ? 1 : -1, next = shownCues[Math.max(0, Math.min(shownCues.length - 1, playIndex + offset))]; if (next) selectCue(next.id, null); }
-    if (["Collapse all groups", "Expand all groups"].includes(item)) setWorkspace((state) => ({ ...state, lists: state.lists.map((value) => ({ ...value, cues: value.cues.map((cue) => cue.type === "Group" ? { ...cue, collapsed: item.startsWith("Collapse") } : cue) })) }));
-    if (item === "Open Workspace in New Window") openWorkspaceWindow(); if (item === "Open Stage Output") openStage(); if (["Override Controls", "Light Dashboard", "Light Patch", "DMX Status", "Timecode Status"].includes(item)) setOperationsOpen(item);
-    if (["StageCue Help", "Keyboard Shortcuts", "Browser limitations", "About StageCue"].includes(item)) setHelp(item);
+    if (["Select next", "Select previous"].includes(item)) {
+      const offset = item.endsWith("next") ? 1 : -1,
+        next =
+          shownCues[
+            Math.max(
+              0,
+              Math.min(
+                shownCues.length - 1,
+                shownCues.findIndex((value) => value.id === selected) + offset,
+              ),
+            )
+          ];
+      if (next) selectCue(next.id, null);
+    }
+    if (
+      ["Select next inspector tab", "Select previous inspector tab"].includes(
+        item,
+      ) &&
+      cue
+    ) {
+      const tabs = tabsForCue(cue),
+        offset = item.includes("next") ? 1 : -1,
+        index = tabs.indexOf(inspectorTab);
+      setInspectorTab(tabs[(index + offset + tabs.length) % tabs.length]);
+    }
+    if (item === "Move playhead to selected cue" && cue)
+      selectCue(cue.id, null);
+    if (
+      ["Move playhead to next cue", "Move playhead to previous cue"].includes(
+        item,
+      )
+    ) {
+      const offset = item.includes("next") ? 1 : -1,
+        next =
+          shownCues[
+            Math.max(0, Math.min(shownCues.length - 1, playIndex + offset))
+          ];
+      if (next) selectCue(next.id, null);
+    }
+    if (["Collapse all groups", "Expand all groups"].includes(item))
+      setWorkspace((state) => ({
+        ...state,
+        lists: state.lists.map((value) => ({
+          ...value,
+          cues: value.cues.map((cue) =>
+            cue.type === "Group"
+              ? { ...cue, collapsed: item.startsWith("Collapse") }
+              : cue,
+          ),
+        })),
+      }));
+    if (item === "Open Workspace in New Window") openWorkspaceWindow();
+    if (item === "Open Stage Output") openStage();
+    if (
+      [
+        "Override Controls",
+        "Light Dashboard",
+        "Light Patch",
+        "DMX Status",
+        "Timecode Status",
+      ].includes(item)
+    )
+      setOperationsOpen(item);
+    if (
+      [
+        "WebCue Help",
+        "Keyboard Shortcuts",
+        "Browser limitations",
+        "About WebCue",
+      ].includes(item)
+    )
+      setHelp(item);
     setOpenMenu("");
   };
-  const menuDisabled = (item) => item === "Group" && list.kind === "cart" || item === "Load to time..." && (!cue || !["Audio", "Video"].includes(cue.type)) || item === "Undo" && !historyStatus.undo || item === "Redo" && !historyStatus.redo || (["Cut", "Copy", "Duplicate", "Delete", "Paste Cue Properties...", "Paste and Match Style"].includes(item) && !cue) || ["Paste", "Paste Cue Properties...", "Paste and Match Style"].includes(item) && !copied.length || item === "Move Cue Up" && (!cue || list.cues[0]?.id === cue.id) || item === "Move Cue Down" && (!cue || list.cues.at(-1)?.id === cue.id) || item === "Jump to selected cue target" && (!cue || !findCue(cue.target)) || item === "Select next" && playIndex >= shownCues.length - 1 || item === "Select previous" && playIndex <= 0 || item === "Enter Edit Mode" && mode === "edit" || item === "Enter Show Mode" && mode === "show" || mode === "show" && (cueTypes.some(([type]) => type === item) || ["Undo", "Redo", "Cut", "Copy", "Paste", "Duplicate", "Paste Cue Properties...", "Delete", "Move Cue Up", "Move Cue Down", "Renumber cues", "Delete cue numbers", "Record cue sequence...", "Inspector", "Toolbox"].includes(item));
+  const menuDisabled = (item) =>
+    (item === "Group" && list.kind === "cart") ||
+    (item === "Load to time..." &&
+      (!cue || !["Audio", "Video"].includes(cue.type))) ||
+    (item === "Undo" && !historyStatus.undo) ||
+    (item === "Redo" && !historyStatus.redo) ||
+    ([
+      "Cut",
+      "Copy",
+      "Duplicate",
+      "Delete",
+      "Paste Cue Properties...",
+      "Paste and Match Style",
+    ].includes(item) &&
+      !cue) ||
+    (["Paste", "Paste Cue Properties...", "Paste and Match Style"].includes(
+      item,
+    ) &&
+      !copied.length) ||
+    (item === "Move Cue Up" && (!cue || list.cues[0]?.id === cue.id)) ||
+    (item === "Move Cue Down" && (!cue || list.cues.at(-1)?.id === cue.id)) ||
+    (item === "Jump to selected cue target" &&
+      (!cue || !findCue(cue.target))) ||
+    (item === "Select next" && playIndex >= shownCues.length - 1) ||
+    (item === "Select previous" && playIndex <= 0) ||
+    (item === "Enter Edit Mode" && mode === "edit") ||
+    (item === "Enter Show Mode" && mode === "show") ||
+    (mode === "show" &&
+      (cueTypes.some(([type]) => type === item) ||
+        [
+          "Undo",
+          "Redo",
+          "Cut",
+          "Copy",
+          "Paste",
+          "Duplicate",
+          "Paste Cue Properties...",
+          "Delete",
+          "Move Cue Up",
+          "Move Cue Down",
+          "Renumber cues",
+          "Delete cue numbers",
+          "Record cue sequence...",
+          "Inspector",
+          "Toolbox",
+        ].includes(item)));
 
-  const toggleCueStar = (type) => patchSettings({ starredCueTypes: starredCueTypes.includes(type) ? starredCueTypes.filter((item) => item !== type) : [...starredCueTypes, type] });
-  const moveCueStar = (from, to, after) => { if (!from || from === to) return; const next = starredCueTypes.filter((item) => item !== from), index = next.indexOf(to); next.splice(Math.max(0, index + (after ? 1 : 0)), 0, from); patchSettings({ starredCueTypes: next }); };
-  const openStarredContext = (event, type) => { event.preventDefault(); event.stopPropagation(); setStarredContext({ x: event.clientX, y: event.clientY, type }); };
+  const toggleCueStar = (type) =>
+    patchSettings({
+      starredCueTypes: starredCueTypes.includes(type)
+        ? starredCueTypes.filter((item) => item !== type)
+        : [...starredCueTypes, type],
+    });
+  const moveCueStar = (from, to, after) => {
+    if (!from || from === to) return;
+    const next = starredCueTypes.filter((item) => item !== from),
+      index = next.indexOf(to);
+    next.splice(Math.max(0, index + (after ? 1 : 0)), 0, from);
+    patchSettings({ starredCueTypes: next });
+  };
+  const openStarredContext = (event, type) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setStarredContext({ x: event.clientX, y: event.clientY, type });
+  };
 
-  return <main style={{ "--inspector-height": inspectorHeight ? `${inspectorHeight}px` : undefined }} className={`app ${mode === "show" ? "show-mode" : ""} ${mode === "edit" && !visible.inspector ? "inspector-hidden" : ""} ${typeof location !== "undefined" && location.hash.startsWith("#inspector=") ? "inspector-window" : ""} cue-size-${settings.cueSize.toLowerCase()} cart-size-${settings.cartSize.toLowerCase()}`} onClick={() => { setContext(null); setStarredContext(null); setStarredOverflow(false); setOpenMenu(""); setControlMenu(""); }}>
-    <input ref={fileRef} hidden type="file" accept="application/json" onChange={importWorkspace} />
-    <input ref={mediaRef} hidden type="file" accept="audio/*,video/*,.mid,.midi" onChange={importMedia} />
-    <header className="menu-bar" onClick={(event) => event.stopPropagation()}><div className="brand"><Box size={17} />StageCue</div>{Object.entries(menuData).map(([name, items]) => <div className={`menu-wrap menu-${name.toLowerCase()}`} key={name}><button className={openMenu === name ? "open" : ""} onClick={() => { setContext(null); setOpenMenu(openMenu === name ? "" : name); }}>{name}</button>{openMenu === name && <div className="dropdown">{items.map((item, index) => item === "-" ? <hr key={index} /> : <button key={item} disabled={menuDisabled(item)} onClick={() => menuAction(item)}><span>{item}</span>{item === "Save" && <kbd>Cmd S</kbd>}</button>)}</div>}</div>)}<div className="menu-wrap mobile-menu"><button aria-label="More menus" className={openMenu === "More" ? "open" : ""} onClick={() => { setContext(null); setOpenMenu(openMenu === "More" ? "" : "More"); }}><Menu size={16} /></button>{openMenu === "More" && <div className="dropdown">{["Tools", "View", "Window", "Help"].map((name) => <div className="mobile-menu-group" key={name}><strong>{name}</strong>{menuData[name].filter((item) => item !== "-").map((item) => <button key={item} disabled={menuDisabled(item)} onClick={() => menuAction(item)}>{item}</button>)}</div>)}</div>}</div><div className="workspace-title">{workspace.name} - {list.name}</div></header>
-    {visible.masthead && !(mode === "show" && list.kind === "cart") && <section className="masthead"><button className={`go ${active.length ? "running" : ""} ${goProtection}`} onClick={go}>{list.kind === "cart" ? "Preview" : settings.audition ? "Audition" : "GO"}</button><div className="standby"><div className="standby-name">{cue ? `${cue.number} - ${cue.name}` : "[no cue on standby]"}</div><div className="standby-notes">{cue?.notes || ""}</div></div>{mode === "edit" && <div className="transport"><IconButton icon={RotateCcw} label="Reset all" onClick={resetAll} /><IconButton icon={Pause} label="Pause all" onClick={pauseAll} /><IconButton icon={Play} label="Resume all" onClick={resumeAll} /><IconButton icon={Square} label="Panic all" onClick={panicAll} /></div>}{searchOpen && <div className="find-bar"><Search size={15} /><input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} /><span>Find: {searchMatches.length} found</span><button disabled={!searchMatches.length} onClick={() => selectCue(searchMatches[Math.max(0, searchMatches.findIndex((item) => item.id === selected) - 1)]?.id || searchMatches.at(-1)?.id, null)}>Previous</button><button disabled={!searchMatches.length} onClick={() => selectCue(searchMatches[(searchMatches.findIndex((item) => item.id === selected) + 1) % searchMatches.length]?.id, null)}>Next</button><button disabled={!searchMatches.length} onClick={() => { setSelectedIds(searchMatches.map((item) => item.id)); setSelected(searchMatches[0].id); setPlayhead(searchMatches[0].id); }}>Select Found</button><button onClick={() => { setSearchOpen(false); setSearch(""); }}>Done</button></div>}</section>}
-    {mode === "edit" && visible.masthead && <section className="toolbox" onClick={(event) => event.stopPropagation()}><div className="starred-area" ref={starredAreaRef}>{visibleStarredCues.map(([name, Icon]) => <FavoriteCueButton key={name} name={name} Icon={Icon} add={addCue} move={moveCueStar} context={openStarredContext} />)}{overflowStarredCues.length > 0 && <div className="starred-overflow-wrap"><button className={starredOverflow ? "starred-cue open" : "starred-cue"} aria-label="More favourite cues" title="More favourite cues" onDragEnter={() => setStarredOverflow(true)} onDragOver={(event) => event.dataTransfer.types.includes("application/stagecue-star") && event.preventDefault()} onDrop={(event) => { event.preventDefault(); moveCueStar(event.dataTransfer.getData("application/stagecue-star"), starredCueTypes.at(-1), true); }} onClick={() => setStarredOverflow((value) => !value)}><Ellipsis size={17} /></button>{starredOverflow && <div className="cue-section-menu starred-overflow-menu">{overflowStarredCues.map(([name, Icon]) => <FavoriteCueButton className="starred-overflow-item" vertical key={name} name={name} Icon={Icon} add={(type) => { addCue(type); setStarredOverflow(false); }} move={moveCueStar} context={openStarredContext} />)}</div>}</div>}</div><div className="toolbox-divider" /><div className="cue-sections">{Object.entries(cueSections).map(([section, names]) => { const items = availableCueTypes.filter(([name]) => names.includes(name)); return items.length ? <div className="toolbox-menu" key={section}><button className={controlMenu === section ? "toolbox-section open" : "toolbox-section"} onClick={() => setControlMenu(controlMenu === section ? "" : section)}>{section}<ChevronDown size={14} /></button>{controlMenu === section && <div className="cue-section-menu">{items.map(([name, Icon]) => { const starred = starredCueTypes.includes(name); return <div className="cue-action" key={name}><button draggable onDragStart={(event) => event.dataTransfer.setData("application/stagecue-type", name)} onClick={() => addCue(name)} title={`New ${name} cue`}><Icon size={15} /><span>{name}</span></button><button className={starred ? "cue-star starred" : "cue-star"} aria-label={`${starred ? "Unstar" : "Star"} ${name}`} title={`${starred ? "Remove" : "Add"} ${name} ${starred ? "from" : "to"} toolbar`} onClick={() => toggleCueStar(name)}><Star size={14} fill={starred ? "currentColor" : "none"} /></button></div>; })}</div>}</div> : null; })}</div></section>}
-    <section className="work-area">{mode === "edit" && visible.cueSidebar && <CueTypeSidebar add={addCue} cart={list.kind === "cart"} />}<div className="center">{list.kind === "list" ? <CueList editable={mode === "edit"} list={list} selected={selectedIds} matches={searchMatches.map((item) => item.id)} related={relatedIds} warnings={warningByCue} playhead={playhead} active={active} remaining={remaining} onClear={clearSelection} onMove={moveCueTo} onAdd={addCueAt} onRename={patchCueById} onToggle={(cue) => patchCueById(cue.id, { collapsed: !cue.collapsed })} onSelect={selectCue} onContext={(event, id) => { event.preventDefault(); event.stopPropagation(); if (!selectedIds.includes(id)) selectCue(id, null); setContext({ x: event.clientX, y: event.clientY, type: "cue" }); }} /> : <CueCart editable={mode === "edit"} list={list} selected={selectedIds} warnings={warningByCue} slot={cartSlot} active={active} onMove={moveCartCue} onSelect={(id, event) => { setCartSlot(null); if (event.metaKey || event.ctrlKey || event.shiftKey) selectCue(id, event); else { selectCue(id, null); runCue(list.cues.find((item) => item.id === id), { preview: true }); } }} onEmpty={(index) => { clearSelection(); setCartSlot(index); }} onContext={(event, id, index) => { event.preventDefault(); event.stopPropagation(); if (id) { if (!selectedIds.includes(id)) selectCue(id, null); setContext({ x: event.clientX, y: event.clientY, type: "cue" }); } else if (mode === "edit") { clearSelection(); setCartSlot(index); setContext({ x: event.clientX, y: event.clientY, type: "cart", slot: index }); } }} />}</div>{visible.sidebar && <Sidebar editable={mode === "edit"} lists={workspace.lists} current={list.id} active={settings.activeNewest === "Top" ? [...active].reverse() : active} paused={paused} remaining={remaining} allCues={allCues()} tab={sidebarTab} setTab={setSidebarTab} select={selectList} context={(event, item) => { event.preventDefault(); event.stopPropagation(); setContext({ x: event.clientX, y: event.clientY, type: "list", item }); }} newList={newList} reset={resetAll} panic={panicAll} pause={pauseAll} resume={resumeAll} toggle={toggleCue} stop={stopCue} seek={(id, elapsed) => controllers.current.get(id)?.seek?.(elapsed)} openWindow={openWorkspaceWindow} />}</section>
-    {mode === "edit" && visible.inspector && <div className="inspector-resizer" role="separator" aria-label="Resize inspector" aria-orientation="horizontal" onPointerDown={resizeInspector} />}
-    {mode === "edit" && visible.inspector && <Inspector cue={cue} count={selectedIds.length} list={list} tab={inspectorTab} setTab={setInspectorTab} patch={patchCueAndPreview} patchChild={patchCueById} preview={() => selectedIds.map((id) => list.cues.find((item) => item.id === id)).filter(Boolean).forEach((item) => runCue(item, { preview: true }))} media={() => mediaRef.current?.click()} devices={devices} settings={settings} capturedMidi={capturedMidi} resetGroup={() => groupRandomRef.current.delete(cue?.id)} />}
-    <footer><div className="mode-switch"><button className={mode === "edit" ? "active" : ""} onClick={() => setMode("edit")}>Edit</button><button className={mode === "show" ? "active" : ""} onClick={() => setMode("show")}>Show</button></div><IconButton icon={PanelLeft} label="Toggle toolbox" active={visible.cueSidebar} onClick={() => setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar }))} disabled={mode === "show"} /><IconButton icon={AlignLeft} label="Toggle masthead" active={visible.masthead} onClick={() => setVisible((value) => ({ ...value, masthead: !value.masthead }))} /><span>{notice || `${list.cues.length} cues in ${workspace.lists.length} lists and carts`}</span>{warningCount > 0 && <button className="warning-button" aria-label={`${warningCount} workspace warnings`} title={`${warningCount} workspace warnings`} onClick={() => { setStatusTab("Warnings"); setStatusOpen(true); }}><AlertTriangle size={16} /><b>{warningCount}</b></button>}<IconButton icon={ExternalLink} label="Open stage output" onClick={() => openStage()} /><IconButton icon={MonitorPlay} label="Toggle inspector" active={visible.inspector} onClick={() => setVisible((value) => ({ ...value, inspector: !value.inspector }))} disabled={mode === "show"} /><IconButton icon={List} label="Toggle lists and carts" active={visible.sidebar} onClick={() => setVisible((value) => ({ ...value, sidebar: !value.sidebar }))} /><IconButton icon={Settings} label="Workspace settings" onClick={() => setSettingsOpen(true)} /></footer>
-    {context && <ContextMenu readOnly={mode === "show"} context={context} cue={cue} count={selectedIds.length} patch={patchCue} duplicate={() => pasteCue(selectedCueValues())} remove={removeCue} run={() => selectedIds.map((id) => list.cues.find((item) => item.id === id)).filter(Boolean).forEach((item) => runCue(item, { preview: true }))} addCue={addCue} newList={newList} renameList={renameList} duplicateList={duplicateList} deleteList={deleteList} canDeleteList={workspace.lists.length > 1} selectList={selectList} openWindow={openWorkspaceWindow} close={() => setContext(null)} />}
-    {starredContext && <div className="context-menu starred-context" style={{ left: Math.min(starredContext.x, innerWidth - 250), top: Math.max(8, Math.min(starredContext.y, innerHeight - 100)) }} onClick={(event) => event.stopPropagation()}><button onClick={() => { addCue(starredContext.type); setStarredContext(null); }}><Plus size={14} />Add {starredContext.type} Cue</button><button onClick={() => { toggleCueStar(starredContext.type); setStarredContext(null); }}><Trash2 size={14} />Delete from Toolbar</button></div>}
-    {settingsOpen && <SettingsPanel page={settingsPage} setPage={setSettingsPage} close={() => setSettingsOpen(false)} settings={settings} patch={patchSettings} connections={connections} devices={devices} connect={connect} requestScreens={requestScreens} openStage={openStage} writeSerial={(value) => writeSerial(serialRef.current, value).catch(fail)} midiRef={midiRef} workspace={workspace} setWorkspace={setWorkspace} fail={fail} />}
-    {statusOpen && <WorkspaceStatus tab={statusTab} setTab={setStatusTab} warnings={warnings} workspaceWarning={runtimeWarnings.workspace} logs={logs} clearLogs={() => setLogs([])} workspace={workspace} inspect={(warning) => { selectList(warning.list); selectCue(warning.cue.id, null); setStatusOpen(false); }} close={() => setStatusOpen(false)} />}
-    {recording && <RecorderPanel count={recording.events.length} stop={finishRecording} cancel={() => setRecording(null)} />}
-    {propertyPasteOpen && <PropertyPaste selected={pasteProperties} setSelected={setPasteProperties} apply={applyPropertyPaste} close={() => setPropertyPasteOpen(false)} />}
-    {selectCueOpen && <CueSelector cues={allCues()} select={(value) => { const owner = workspace.lists.find((item) => item.cues.some((cue) => cue.id === value.id)); if (owner) selectList(owner); setTimeout(() => selectCue(value.id, null)); setSelectCueOpen(false); }} close={() => setSelectCueOpen(false)} />}
-    {operationsOpen && <OperationsPanel kind={operationsOpen} workspace={workspace} patchSettings={patchSettings} active={active} remaining={remaining} visitControls={(callback) => controllers.current.forEach(callback)} openStage={openStage} close={() => setOperationsOpen("")} />}
-    {help && <HelpPanel kind={help} settings={settings} close={() => setHelp("")} />}
-  </main>;
+  return (
+    <main
+      style={{
+        "--inspector-height": inspectorHeight
+          ? `${inspectorHeight}px`
+          : undefined,
+      }}
+      className={`app ${mode === "show" ? "show-mode" : ""} ${mode === "edit" && !visible.inspector ? "inspector-hidden" : ""} ${typeof location !== "undefined" && location.hash.startsWith("#inspector=") ? "inspector-window" : ""} cue-size-${settings.cueSize.toLowerCase()} cart-size-${settings.cartSize.toLowerCase()}`}
+      onClick={() => {
+        setContext(null);
+        setStarredContext(null);
+        setStarredOverflow(false);
+        setOpenMenu("");
+        setControlMenu("");
+      }}
+    >
+      <input
+        ref={fileRef}
+        hidden
+        type="file"
+        accept="application/json"
+        onChange={importWorkspace}
+      />
+      <input
+        ref={mediaRef}
+        hidden
+        type="file"
+        accept="audio/*,video/*,.mid,.midi"
+        onChange={importMedia}
+      />
+      <header className="menu-bar" onClick={(event) => event.stopPropagation()}>
+        <div className="brand">
+          <Box size={17} />
+          WebCue
+        </div>
+        {Object.entries(menuData).map(([name, items]) => (
+          <div className={`menu-wrap menu-${name.toLowerCase()}`} key={name}>
+            <button
+              className={openMenu === name ? "open" : ""}
+              onClick={() => {
+                setContext(null);
+                setOpenMenu(openMenu === name ? "" : name);
+              }}
+            >
+              {name}
+            </button>
+            {openMenu === name && (
+              <div className="dropdown">
+                {items.map((item, index) =>
+                  item === "-" ? (
+                    <hr key={index} />
+                  ) : (
+                    <button
+                      key={item}
+                      disabled={menuDisabled(item)}
+                      onClick={() => menuAction(item)}
+                    >
+                      <span>{item}</span>
+                      {item === "Save" && <kbd>Cmd S</kbd>}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        <div className="menu-wrap mobile-menu">
+          <button
+            aria-label="More menus"
+            className={openMenu === "More" ? "open" : ""}
+            onClick={() => {
+              setContext(null);
+              setOpenMenu(openMenu === "More" ? "" : "More");
+            }}
+          >
+            <Menu size={16} />
+          </button>
+          {openMenu === "More" && (
+            <div className="dropdown">
+              {["Tools", "View", "Window", "Help"].map((name) => (
+                <div className="mobile-menu-group" key={name}>
+                  <strong>{name}</strong>
+                  {menuData[name]
+                    .filter((item) => item !== "-")
+                    .map((item) => (
+                      <button
+                        key={item}
+                        disabled={menuDisabled(item)}
+                        onClick={() => menuAction(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="workspace-title">
+          {workspace.name} - {list.name}
+        </div>
+      </header>
+      {visible.masthead && !(mode === "show" && list.kind === "cart") && (
+        <section className="masthead">
+          <button
+            className={`go ${active.length ? "running" : ""} ${goProtection}`}
+            onClick={go}
+          >
+            {list.kind === "cart"
+              ? "Preview"
+              : settings.audition
+                ? "Audition"
+                : "GO"}
+          </button>
+          <div className="standby">
+            <div className="standby-name">
+              {cue ? `${cue.number} - ${cue.name}` : "[no cue on standby]"}
+            </div>
+            <div className="standby-notes">{cue?.notes || ""}</div>
+          </div>
+          {mode === "edit" && (
+            <div className="transport">
+              <IconButton
+                icon={RotateCcw}
+                label="Reset all"
+                onClick={resetAll}
+              />
+              <IconButton icon={Pause} label="Pause all" onClick={pauseAll} />
+              <IconButton icon={Play} label="Resume all" onClick={resumeAll} />
+              <IconButton icon={Square} label="Panic all" onClick={panicAll} />
+            </div>
+          )}
+          {searchOpen && (
+            <div className="find-bar">
+              <Search size={15} />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <span>Find: {searchMatches.length} found</span>
+              <button
+                disabled={!searchMatches.length}
+                onClick={() =>
+                  selectCue(
+                    searchMatches[
+                      Math.max(
+                        0,
+                        searchMatches.findIndex(
+                          (item) => item.id === selected,
+                        ) - 1,
+                      )
+                    ]?.id || searchMatches.at(-1)?.id,
+                    null,
+                  )
+                }
+              >
+                Previous
+              </button>
+              <button
+                disabled={!searchMatches.length}
+                onClick={() =>
+                  selectCue(
+                    searchMatches[
+                      (searchMatches.findIndex((item) => item.id === selected) +
+                        1) %
+                        searchMatches.length
+                    ]?.id,
+                    null,
+                  )
+                }
+              >
+                Next
+              </button>
+              <button
+                disabled={!searchMatches.length}
+                onClick={() => {
+                  setSelectedIds(searchMatches.map((item) => item.id));
+                  setSelected(searchMatches[0].id);
+                  setPlayhead(searchMatches[0].id);
+                }}
+              >
+                Select Found
+              </button>
+              <button
+                onClick={() => {
+                  setSearchOpen(false);
+                  setSearch("");
+                }}
+              >
+                Done
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+      {mode === "edit" && visible.masthead && (
+        <section
+          className="toolbox"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="starred-area" ref={starredAreaRef}>
+            {visibleStarredCues.map(([name, Icon]) => (
+              <FavoriteCueButton
+                key={name}
+                name={name}
+                Icon={Icon}
+                add={addCue}
+                move={moveCueStar}
+                context={openStarredContext}
+              />
+            ))}
+            {overflowStarredCues.length > 0 && (
+              <div className="starred-overflow-wrap">
+                <button
+                  className={
+                    starredOverflow ? "starred-cue open" : "starred-cue"
+                  }
+                  aria-label="More favourite cues"
+                  title="More favourite cues"
+                  onDragEnter={() => setStarredOverflow(true)}
+                  onDragOver={(event) =>
+                    event.dataTransfer.types.includes(
+                      "application/webcue-star",
+                    ) && event.preventDefault()
+                  }
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    moveCueStar(
+                      event.dataTransfer.getData("application/webcue-star"),
+                      starredCueTypes.at(-1),
+                      true,
+                    );
+                  }}
+                  onClick={() => setStarredOverflow((value) => !value)}
+                >
+                  <Ellipsis size={17} />
+                </button>
+                {starredOverflow && (
+                  <div className="cue-section-menu starred-overflow-menu">
+                    {overflowStarredCues.map(([name, Icon]) => (
+                      <FavoriteCueButton
+                        className="starred-overflow-item"
+                        vertical
+                        key={name}
+                        name={name}
+                        Icon={Icon}
+                        add={(type) => {
+                          addCue(type);
+                          setStarredOverflow(false);
+                        }}
+                        move={moveCueStar}
+                        context={openStarredContext}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="toolbox-divider" />
+          <div className="cue-sections">
+            {Object.entries(cueSections).map(([section, names]) => {
+              const items = availableCueTypes.filter(([name]) =>
+                names.includes(name),
+              );
+              return items.length ? (
+                <div className="toolbox-menu" key={section}>
+                  <button
+                    className={
+                      controlMenu === section
+                        ? "toolbox-section open"
+                        : "toolbox-section"
+                    }
+                    onClick={() =>
+                      setControlMenu(controlMenu === section ? "" : section)
+                    }
+                  >
+                    {section}
+                    <ChevronDown size={14} />
+                  </button>
+                  {controlMenu === section && (
+                    <div className="cue-section-menu">
+                      {items.map(([name, Icon]) => {
+                        const starred = starredCueTypes.includes(name);
+                        return (
+                          <div className="cue-action" key={name}>
+                            <button
+                              draggable
+                              onDragStart={(event) =>
+                                event.dataTransfer.setData(
+                                  "application/webcue-type",
+                                  name,
+                                )
+                              }
+                              onClick={() => addCue(name)}
+                              title={`New ${name} cue`}
+                            >
+                              <Icon size={15} />
+                              <span>{name}</span>
+                            </button>
+                            <button
+                              className={
+                                starred ? "cue-star starred" : "cue-star"
+                              }
+                              aria-label={`${starred ? "Unstar" : "Star"} ${name}`}
+                              title={`${starred ? "Remove" : "Add"} ${name} ${starred ? "from" : "to"} toolbar`}
+                              onClick={() => toggleCueStar(name)}
+                            >
+                              <Star
+                                size={14}
+                                fill={starred ? "currentColor" : "none"}
+                              />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : null;
+            })}
+          </div>
+        </section>
+      )}
+      <section className="work-area">
+        {mode === "edit" && visible.cueSidebar && (
+          <CueTypeSidebar add={addCue} cart={list.kind === "cart"} />
+        )}
+        <div className="center">
+          {list.kind === "list" ? (
+            <CueList
+              editable={mode === "edit"}
+              list={list}
+              selected={selectedIds}
+              matches={searchMatches.map((item) => item.id)}
+              related={relatedIds}
+              warnings={warningByCue}
+              playhead={playhead}
+              active={active}
+              remaining={remaining}
+              onClear={clearSelection}
+              onMove={moveCueTo}
+              onAdd={addCueAt}
+              onRename={patchCueById}
+              onToggle={(cue) =>
+                patchCueById(cue.id, { collapsed: !cue.collapsed })
+              }
+              onSelect={selectCue}
+              onContext={(event, id) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!selectedIds.includes(id)) selectCue(id, null);
+                setContext({ x: event.clientX, y: event.clientY, type: "cue" });
+              }}
+            />
+          ) : (
+            <CueCart
+              editable={mode === "edit"}
+              list={list}
+              selected={selectedIds}
+              warnings={warningByCue}
+              slot={cartSlot}
+              active={active}
+              onMove={moveCartCue}
+              onSelect={(id, event) => {
+                setCartSlot(null);
+                if (event.metaKey || event.ctrlKey || event.shiftKey)
+                  selectCue(id, event);
+                else {
+                  selectCue(id, null);
+                  runCue(
+                    list.cues.find((item) => item.id === id),
+                    { preview: true },
+                  );
+                }
+              }}
+              onEmpty={(index) => {
+                clearSelection();
+                setCartSlot(index);
+              }}
+              onContext={(event, id, index) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (id) {
+                  if (!selectedIds.includes(id)) selectCue(id, null);
+                  setContext({
+                    x: event.clientX,
+                    y: event.clientY,
+                    type: "cue",
+                  });
+                } else if (mode === "edit") {
+                  clearSelection();
+                  setCartSlot(index);
+                  setContext({
+                    x: event.clientX,
+                    y: event.clientY,
+                    type: "cart",
+                    slot: index,
+                  });
+                }
+              }}
+            />
+          )}
+        </div>
+        {visible.sidebar && (
+          <Sidebar
+            editable={mode === "edit"}
+            lists={workspace.lists}
+            current={list.id}
+            active={
+              settings.activeNewest === "Top" ? [...active].reverse() : active
+            }
+            paused={paused}
+            remaining={remaining}
+            allCues={allCues()}
+            tab={sidebarTab}
+            setTab={setSidebarTab}
+            select={selectList}
+            context={(event, item) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setContext({
+                x: event.clientX,
+                y: event.clientY,
+                type: "list",
+                item,
+              });
+            }}
+            newList={newList}
+            reset={resetAll}
+            panic={panicAll}
+            pause={pauseAll}
+            resume={resumeAll}
+            toggle={toggleCue}
+            stop={stopCue}
+            seek={(id, elapsed) => controllers.current.get(id)?.seek?.(elapsed)}
+            openWindow={openWorkspaceWindow}
+          />
+        )}
+      </section>
+      {mode === "edit" && visible.inspector && (
+        <div
+          className="inspector-resizer"
+          role="separator"
+          aria-label="Resize inspector"
+          aria-orientation="horizontal"
+          onPointerDown={resizeInspector}
+        />
+      )}
+      {mode === "edit" && visible.inspector && (
+        <Inspector
+          cue={cue}
+          count={selectedIds.length}
+          list={list}
+          tab={inspectorTab}
+          setTab={setInspectorTab}
+          patch={patchCueAndPreview}
+          patchChild={patchCueById}
+          preview={() =>
+            selectedIds
+              .map((id) => list.cues.find((item) => item.id === id))
+              .filter(Boolean)
+              .forEach((item) => runCue(item, { preview: true }))
+          }
+          media={() => mediaRef.current?.click()}
+          devices={devices}
+          settings={settings}
+          capturedMidi={capturedMidi}
+          resetGroup={() => groupRandomRef.current.delete(cue?.id)}
+        />
+      )}
+      <footer>
+        <div className="mode-switch">
+          <button
+            className={mode === "edit" ? "active" : ""}
+            onClick={() => setMode("edit")}
+          >
+            Edit
+          </button>
+          <button
+            className={mode === "show" ? "active" : ""}
+            onClick={() => setMode("show")}
+          >
+            Show
+          </button>
+        </div>
+        <IconButton
+          icon={PanelLeft}
+          label="Toggle toolbox"
+          active={visible.cueSidebar}
+          onClick={() =>
+            setVisible((value) => ({ ...value, cueSidebar: !value.cueSidebar }))
+          }
+          disabled={mode === "show"}
+        />
+        <IconButton
+          icon={AlignLeft}
+          label="Toggle masthead"
+          active={visible.masthead}
+          onClick={() =>
+            setVisible((value) => ({ ...value, masthead: !value.masthead }))
+          }
+        />
+        <span>
+          {notice ||
+            `${list.cues.length} cues in ${workspace.lists.length} lists and carts`}
+        </span>
+        {warningCount > 0 && (
+          <button
+            className="warning-button"
+            aria-label={`${warningCount} workspace warnings`}
+            title={`${warningCount} workspace warnings`}
+            onClick={() => {
+              setStatusTab("Warnings");
+              setStatusOpen(true);
+            }}
+          >
+            <AlertTriangle size={16} />
+            <b>{warningCount}</b>
+          </button>
+        )}
+        <IconButton
+          icon={ExternalLink}
+          label="Open stage output"
+          onClick={() => openStage()}
+        />
+        <IconButton
+          icon={MonitorPlay}
+          label="Toggle inspector"
+          active={visible.inspector}
+          onClick={() =>
+            setVisible((value) => ({ ...value, inspector: !value.inspector }))
+          }
+          disabled={mode === "show"}
+        />
+        <IconButton
+          icon={List}
+          label="Toggle lists and carts"
+          active={visible.sidebar}
+          onClick={() =>
+            setVisible((value) => ({ ...value, sidebar: !value.sidebar }))
+          }
+        />
+        <IconButton
+          icon={Settings}
+          label="Workspace settings"
+          onClick={() => setSettingsOpen(true)}
+        />
+      </footer>
+      {context && (
+        <ContextMenu
+          readOnly={mode === "show"}
+          context={context}
+          cue={cue}
+          count={selectedIds.length}
+          patch={patchCue}
+          duplicate={() => pasteCue(selectedCueValues())}
+          remove={removeCue}
+          run={() =>
+            selectedIds
+              .map((id) => list.cues.find((item) => item.id === id))
+              .filter(Boolean)
+              .forEach((item) => runCue(item, { preview: true }))
+          }
+          addCue={addCue}
+          newList={newList}
+          renameList={renameList}
+          duplicateList={duplicateList}
+          deleteList={deleteList}
+          canDeleteList={workspace.lists.length > 1}
+          selectList={selectList}
+          openWindow={openWorkspaceWindow}
+          close={() => setContext(null)}
+        />
+      )}
+      {starredContext && (
+        <div
+          className="context-menu starred-context"
+          style={{
+            left: Math.min(starredContext.x, innerWidth - 250),
+            top: Math.max(8, Math.min(starredContext.y, innerHeight - 100)),
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              addCue(starredContext.type);
+              setStarredContext(null);
+            }}
+          >
+            <Plus size={14} />
+            Add {starredContext.type} Cue
+          </button>
+          <button
+            onClick={() => {
+              toggleCueStar(starredContext.type);
+              setStarredContext(null);
+            }}
+          >
+            <Trash2 size={14} />
+            Delete from Toolbar
+          </button>
+        </div>
+      )}
+      {settingsOpen && (
+        <SettingsPanel
+          page={settingsPage}
+          setPage={setSettingsPage}
+          close={() => setSettingsOpen(false)}
+          settings={settings}
+          patch={patchSettings}
+          connections={connections}
+          devices={devices}
+          connect={connect}
+          requestScreens={requestScreens}
+          openStage={openStage}
+          writeSerial={(value) =>
+            writeSerial(serialRef.current, value).catch(fail)
+          }
+          midiRef={midiRef}
+          workspace={workspace}
+          setWorkspace={setWorkspace}
+          fail={fail}
+        />
+      )}
+      {statusOpen && (
+        <WorkspaceStatus
+          tab={statusTab}
+          setTab={setStatusTab}
+          warnings={warnings}
+          workspaceWarning={runtimeWarnings.workspace}
+          logs={logs}
+          clearLogs={() => setLogs([])}
+          workspace={workspace}
+          inspect={(warning) => {
+            selectList(warning.list);
+            selectCue(warning.cue.id, null);
+            setStatusOpen(false);
+          }}
+          close={() => setStatusOpen(false)}
+        />
+      )}
+      {recording && (
+        <RecorderPanel
+          count={recording.events.length}
+          stop={finishRecording}
+          cancel={() => setRecording(null)}
+        />
+      )}
+      {propertyPasteOpen && (
+        <PropertyPaste
+          selected={pasteProperties}
+          setSelected={setPasteProperties}
+          apply={applyPropertyPaste}
+          close={() => setPropertyPasteOpen(false)}
+        />
+      )}
+      {selectCueOpen && (
+        <CueSelector
+          cues={allCues()}
+          select={(value) => {
+            const owner = workspace.lists.find((item) =>
+              item.cues.some((cue) => cue.id === value.id),
+            );
+            if (owner) selectList(owner);
+            setTimeout(() => selectCue(value.id, null));
+            setSelectCueOpen(false);
+          }}
+          close={() => setSelectCueOpen(false)}
+        />
+      )}
+      {operationsOpen && (
+        <OperationsPanel
+          kind={operationsOpen}
+          workspace={workspace}
+          patchSettings={patchSettings}
+          active={active}
+          remaining={remaining}
+          visitControls={(callback) => controllers.current.forEach(callback)}
+          openStage={openStage}
+          close={() => setOperationsOpen("")}
+        />
+      )}
+      {help && (
+        <HelpPanel kind={help} settings={settings} close={() => setHelp("")} />
+      )}
+    </main>
+  );
 }
 
-function CueList({ editable, list, selected, matches, related, warnings, playhead, active, remaining, onClear, onMove, onAdd, onRename, onToggle, onSelect, onContext }) {
-  const [editing, setEditing] = useState(""), [name, setName] = useState(""), [drop, setDrop] = useState(null);
+function CueList({
+  editable,
+  list,
+  selected,
+  matches,
+  related,
+  warnings,
+  playhead,
+  active,
+  remaining,
+  onClear,
+  onMove,
+  onAdd,
+  onRename,
+  onToggle,
+  onSelect,
+  onContext,
+}) {
+  const [editing, setEditing] = useState(""),
+    [name, setName] = useState(""),
+    [drop, setDrop] = useState(null);
   matches = [...new Set([...matches, ...related])];
-  const finish = (id) => { if (name.trim()) onRename(id, { name: name.trim() }); setEditing(""); };
-  const cues = visibleCues(list.cues), maxDepth = Math.max(0, ...cues.map((cue) => depthOf(list.cues, cue)));
-  return <div className="cue-list" style={{ "--nest-width": `${maxDepth * 14}px` }} onClick={(event) => { if (event.target === event.currentTarget || (event.target as Element).classList?.contains("rows")) onClear(); }}><div className="cue-head"><span></span><span>Number</span><span>Name</span><span>Target</span><span>Pre-Wait</span><span>Duration</span><span>Post-Wait</span><span></span></div><div className="rows">{cues.map((cue) => { const Icon = icons[cue.type] || Zap, dropping = drop?.id === cue.id, depth = depthOf(list.cues, cue), children = childrenOf(list.cues, cue.id); return <div style={{ "--indent": `${depth * 14}px` }} draggable={editable && editing !== cue.id} key={cue.id} className={`cue-row ${selected.includes(cue.id) ? "selected" : ""} ${matches.includes(cue.id) ? "found" : ""} ${active.includes(cue.id) ? "running" : ""} ${!cue.armed ? "disarmed" : ""} ${dropping ? `drop-${drop.before ? "before" : "after"}` : ""} color-${cue.color}`} onDragStart={(event) => event.dataTransfer.setData("text/stagecue", cue.id)} onDragLeave={() => dropping && setDrop(null)} onDragOver={(event) => { if (!editable) return; event.preventDefault(); const box = event.currentTarget.getBoundingClientRect(); setDrop({ id: cue.id, before: event.clientY < box.top + box.height / 2 }); }} onDrop={(event) => { event.preventDefault(); const before = drop?.before ?? true, from = event.dataTransfer.getData("text/stagecue"), type = event.dataTransfer.getData("application/stagecue-type"); if (from) onMove(from, cue.id, before); else if (type) onAdd(type, cue.id, before); setDrop(null); }} onClick={(event) => onSelect(cue.id, event)} onContextMenu={(event) => onContext(event, cue.id)}><span className={`playhead ${playhead === cue.id ? "here" : ""}`}>{active.includes(cue.id) ? <CirclePlay size={15} /> : <ChevronRight size={14} />}</span><span className="number">{cue.type === "Group" && children.length ? <button className="disclosure" onClick={(event) => { event.stopPropagation(); onToggle(cue); }}>{cue.collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}</button> : <span className="disclosure-space" />}<Icon size={15} />{cue.number}</span>{editing === cue.id ? <input className="inline-name" autoFocus value={name} onChange={(event) => setName(event.target.value)} onBlur={() => finish(cue.id)} onKeyDown={(event) => { if (event.key === "Enter") finish(cue.id); if (event.key === "Escape") setEditing(""); }} onClick={(event) => event.stopPropagation()} /> : <strong onDoubleClick={(event) => { if (!editable) return; event.stopPropagation(); setEditing(cue.id); setName(cue.name); }}>{cue.name}</strong>}<span className="target">{cue.type === "Group" ? `${children.length} cue${children.length === 1 ? "" : "s"}` : cue.fileName || cue.target || "--"}</span><span>{time(cue.pre)}</span><span>{time(remaining[cue.id] ?? cue.duration)}</span><span>{time(cue.post)}</span><span className="cue-status">{warnings[cue.id] && <AlertTriangle size={13} title={warnings[cue.id]} />}{cue.continueMode !== "Do not continue" && <CornerDownRight size={13} title={cue.continueMode} />}{cue.flagged && <Flag size={13} />}</span></div>; })}</div></div>;
+  const finish = (id) => {
+    if (name.trim()) onRename(id, { name: name.trim() });
+    setEditing("");
+  };
+  const cues = visibleCues(list.cues),
+    maxDepth = Math.max(0, ...cues.map((cue) => depthOf(list.cues, cue)));
+  return (
+    <div
+      className="cue-list"
+      style={{ "--nest-width": `${maxDepth * 14}px` }}
+      onClick={(event) => {
+        if (
+          event.target === event.currentTarget ||
+          (event.target as Element).classList?.contains("rows")
+        )
+          onClear();
+      }}
+    >
+      <div className="cue-head">
+        <span></span>
+        <span>Number</span>
+        <span>Name</span>
+        <span>Target</span>
+        <span>Pre-Wait</span>
+        <span>Duration</span>
+        <span>Post-Wait</span>
+        <span></span>
+      </div>
+      <div className="rows">
+        {cues.map((cue) => {
+          const Icon = icons[cue.type] || Zap,
+            dropping = drop?.id === cue.id,
+            depth = depthOf(list.cues, cue),
+            children = childrenOf(list.cues, cue.id);
+          return (
+            <div
+              style={{ "--indent": `${depth * 14}px` }}
+              draggable={editable && editing !== cue.id}
+              key={cue.id}
+              className={`cue-row ${selected.includes(cue.id) ? "selected" : ""} ${matches.includes(cue.id) ? "found" : ""} ${active.includes(cue.id) ? "running" : ""} ${!cue.armed ? "disarmed" : ""} ${dropping ? `drop-${drop.before ? "before" : "after"}` : ""} color-${cue.color}`}
+              onDragStart={(event) =>
+                event.dataTransfer.setData("text/webcue", cue.id)
+              }
+              onDragLeave={() => dropping && setDrop(null)}
+              onDragOver={(event) => {
+                if (!editable) return;
+                event.preventDefault();
+                const box = event.currentTarget.getBoundingClientRect();
+                setDrop({
+                  id: cue.id,
+                  before: event.clientY < box.top + box.height / 2,
+                });
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const before = drop?.before ?? true,
+                  from = event.dataTransfer.getData("text/webcue"),
+                  type = event.dataTransfer.getData("application/webcue-type");
+                if (from) onMove(from, cue.id, before);
+                else if (type) onAdd(type, cue.id, before);
+                setDrop(null);
+              }}
+              onClick={(event) => onSelect(cue.id, event)}
+              onContextMenu={(event) => onContext(event, cue.id)}
+            >
+              <span className={`playhead ${playhead === cue.id ? "here" : ""}`}>
+                {active.includes(cue.id) ? (
+                  <CirclePlay size={15} />
+                ) : (
+                  <ChevronRight size={14} />
+                )}
+              </span>
+              <span className="number">
+                {cue.type === "Group" && children.length ? (
+                  <button
+                    className="disclosure"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onToggle(cue);
+                    }}
+                  >
+                    {cue.collapsed ? (
+                      <ChevronRight size={13} />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )}
+                  </button>
+                ) : (
+                  <span className="disclosure-space" />
+                )}
+                <Icon size={15} />
+                {cue.number}
+              </span>
+              {editing === cue.id ? (
+                <input
+                  className="inline-name"
+                  autoFocus
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  onBlur={() => finish(cue.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") finish(cue.id);
+                    if (event.key === "Escape") setEditing("");
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              ) : (
+                <strong
+                  onDoubleClick={(event) => {
+                    if (!editable) return;
+                    event.stopPropagation();
+                    setEditing(cue.id);
+                    setName(cue.name);
+                  }}
+                >
+                  {cue.name}
+                </strong>
+              )}
+              <span className="target">
+                {cue.type === "Group"
+                  ? `${children.length} cue${children.length === 1 ? "" : "s"}`
+                  : cue.fileName || cue.target || "--"}
+              </span>
+              <span>{time(cue.pre)}</span>
+              <span>{time(remaining[cue.id] ?? cue.duration)}</span>
+              <span>{time(cue.post)}</span>
+              <span className="cue-status">
+                {warnings[cue.id] && (
+                  <AlertTriangle size={13} title={warnings[cue.id]} />
+                )}
+                {cue.continueMode !== "Do not continue" && (
+                  <CornerDownRight size={13} title={cue.continueMode} />
+                )}
+                {cue.flagged && <Flag size={13} />}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
-function CueCart({ editable, list, selected, warnings, slot, active, onMove, onSelect, onEmpty, onContext }) {
-  return <div className="cart-grid">{Array.from({ length: Math.max(20, ...list.cues.map((cue, index) => (cue.cartSlot ?? index) + 5)) }, (_, index) => { const cue = list.cues.find((item, cueIndex) => (item.cartSlot ?? cueIndex) === index), Icon = cue ? icons[cue.type] || Zap : Plus; return <button draggable={editable && Boolean(cue)} aria-label={cue ? undefined : `Empty cue cart slot ${index + 1}`} key={cue?.id || index} className={`${cue ? `filled color-${cue.color}` : ""} ${selected.includes(cue?.id) || !cue && slot === index ? "selected" : ""} ${active.includes(cue?.id) ? "running" : ""}`} onDragStart={(event) => cue && event.dataTransfer.setData("text/stagecue", cue.id)} onDragOver={(event) => editable && event.preventDefault()} onDrop={(event) => { event.preventDefault(); onMove(event.dataTransfer.getData("text/stagecue"), index); }} onClick={(event) => cue ? onSelect(cue.id, event) : onEmpty(index)} onContextMenu={(event) => onContext(event, cue?.id, index)}><Icon size={cue ? 24 : 18} />{cue && <><strong>{cue.number}</strong><span>{cue.name}</span>{warnings[cue.id] && <AlertTriangle size={14} title={warnings[cue.id]} />}</>}</button>; })}</div>;
+function CueCart({
+  editable,
+  list,
+  selected,
+  warnings,
+  slot,
+  active,
+  onMove,
+  onSelect,
+  onEmpty,
+  onContext,
+}) {
+  return (
+    <div className="cart-grid">
+      {Array.from(
+        {
+          length: Math.max(
+            20,
+            ...list.cues.map((cue, index) => (cue.cartSlot ?? index) + 5),
+          ),
+        },
+        (_, index) => {
+          const cue = list.cues.find(
+              (item, cueIndex) => (item.cartSlot ?? cueIndex) === index,
+            ),
+            Icon = cue ? icons[cue.type] || Zap : Plus;
+          return (
+            <button
+              draggable={editable && Boolean(cue)}
+              aria-label={cue ? undefined : `Empty cue cart slot ${index + 1}`}
+              key={cue?.id || index}
+              className={`${cue ? `filled color-${cue.color}` : ""} ${selected.includes(cue?.id) || (!cue && slot === index) ? "selected" : ""} ${active.includes(cue?.id) ? "running" : ""}`}
+              onDragStart={(event) =>
+                cue && event.dataTransfer.setData("text/webcue", cue.id)
+              }
+              onDragOver={(event) => editable && event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                onMove(event.dataTransfer.getData("text/webcue"), index);
+              }}
+              onClick={(event) =>
+                cue ? onSelect(cue.id, event) : onEmpty(index)
+              }
+              onContextMenu={(event) => onContext(event, cue?.id, index)}
+            >
+              <Icon size={cue ? 24 : 18} />
+              {cue && (
+                <>
+                  <strong>{cue.number}</strong>
+                  <span>{cue.name}</span>
+                  {warnings[cue.id] && (
+                    <AlertTriangle size={14} title={warnings[cue.id]} />
+                  )}
+                </>
+              )}
+            </button>
+          );
+        },
+      )}
+    </div>
+  );
 }
-function CueTypeSidebar({ add, cart }) { return <aside className="cue-type-sidebar">{cueTypes.filter(([type]) => !cart || type !== "Group").map(([type, Icon], index) => <button draggable key={type} onDragStart={(event) => event.dataTransfer.setData("application/stagecue-type", type)} onClick={() => add(type)}><Icon size={15} /><span>{type}</span>{index < 10 && <kbd>Cmd {index}</kbd>}</button>)}</aside>; }
-function Sidebar({ editable, lists, current, active, paused, remaining, allCues, tab, setTab, select, context, newList, reset, panic, pause, resume, toggle, stop, seek, openWindow }) {
-  return <aside className="sidebar"><div className="side-transport"><IconButton icon={RotateCcw} label="Reset all" onClick={reset} /><IconButton icon={Pause} label="Pause all" onClick={pause} /><IconButton icon={Play} label="Resume all" onClick={resume} /><IconButton icon={Square} label="Panic all" onClick={panic} /></div><div className="side-tabs"><button className={tab === "lists" ? "active" : ""} onClick={() => setTab("lists")}>{countLabel(lists.filter((item) => item.kind === "list").length, "List")} and {countLabel(lists.filter((item) => item.kind === "cart").length, "Cart")}</button><button className={tab === "active" ? "active" : ""} onClick={() => setTab("active")}>{active.length} Active Cues</button></div><div className="side-list">{tab === "lists" ? lists.map((item) => <button key={item.id} className={current === item.id ? "selected" : ""} onClick={() => select(item)} onContextMenu={(event) => context(event, item)}><ChevronRight size={13} />{item.kind === "cart" ? <Box size={14} /> : <List size={14} />}<span>{item.name}</span><small>{item.cues.length}</small></button>) : active.length ? active.map((id) => { const cue = allCues.find((item) => item.id === id), total = Math.max(cue?.duration || 0, remaining[id] || 0), elapsed = Math.max(0, total - (remaining[id] || 0)); return <div className={`active-cue ${paused.includes(id) ? "paused" : ""}`} key={id}><button title={paused.includes(id) ? "Resume cue" : "Pause cue"} onClick={() => toggle(id)}>{paused.includes(id) ? <Play size={13} /> : <Pause size={13} />}</button><span><strong>{cue?.number} - {cue?.name}</strong><small>{time(elapsed)} elapsed; {time(remaining[id] || 0)} remaining</small>{total > 0 && <input aria-label={`Scrub ${cue?.name}`} type="range" min="0" max={total} step="0.01" value={elapsed} onChange={(event) => seek(id, Number(event.target.value))} />}</span><button title="Panic cue" onClick={() => stop(id)}><Square size={12} /></button></div>; }) : <div className="empty">No active cues</div>}</div><div className="side-actions">{editable && <><button onClick={() => newList("list")}>New List</button><button onClick={() => newList("cart")}>New Cart</button></>}<button onClick={openWindow}>Open in New Window</button></div></aside>;
+function CueTypeSidebar({ add, cart }) {
+  return (
+    <aside className="cue-type-sidebar">
+      {cueTypes
+        .filter(([type]) => !cart || type !== "Group")
+        .map(([type, Icon], index) => (
+          <button
+            draggable
+            key={type}
+            onDragStart={(event) =>
+              event.dataTransfer.setData("application/webcue-type", type)
+            }
+            onClick={() => add(type)}
+          >
+            <Icon size={15} />
+            <span>{type}</span>
+            {index < 10 && <kbd>Cmd {index}</kbd>}
+          </button>
+        ))}
+    </aside>
+  );
+}
+function Sidebar({
+  editable,
+  lists,
+  current,
+  active,
+  paused,
+  remaining,
+  allCues,
+  tab,
+  setTab,
+  select,
+  context,
+  newList,
+  reset,
+  panic,
+  pause,
+  resume,
+  toggle,
+  stop,
+  seek,
+  openWindow,
+}) {
+  return (
+    <aside className="sidebar">
+      <div className="side-transport">
+        <IconButton icon={RotateCcw} label="Reset all" onClick={reset} />
+        <IconButton icon={Pause} label="Pause all" onClick={pause} />
+        <IconButton icon={Play} label="Resume all" onClick={resume} />
+        <IconButton icon={Square} label="Panic all" onClick={panic} />
+      </div>
+      <div className="side-tabs">
+        <button
+          className={tab === "lists" ? "active" : ""}
+          onClick={() => setTab("lists")}
+        >
+          {countLabel(
+            lists.filter((item) => item.kind === "list").length,
+            "List",
+          )}{" "}
+          and{" "}
+          {countLabel(
+            lists.filter((item) => item.kind === "cart").length,
+            "Cart",
+          )}
+        </button>
+        <button
+          className={tab === "active" ? "active" : ""}
+          onClick={() => setTab("active")}
+        >
+          {active.length} Active Cues
+        </button>
+      </div>
+      <div className="side-list">
+        {tab === "lists" ? (
+          lists.map((item) => (
+            <button
+              key={item.id}
+              className={current === item.id ? "selected" : ""}
+              onClick={() => select(item)}
+              onContextMenu={(event) => context(event, item)}
+            >
+              <ChevronRight size={13} />
+              {item.kind === "cart" ? <Box size={14} /> : <List size={14} />}
+              <span>{item.name}</span>
+              <small>{item.cues.length}</small>
+            </button>
+          ))
+        ) : active.length ? (
+          active.map((id) => {
+            const cue = allCues.find((item) => item.id === id),
+              total = Math.max(cue?.duration || 0, remaining[id] || 0),
+              elapsed = Math.max(0, total - (remaining[id] || 0));
+            return (
+              <div
+                className={`active-cue ${paused.includes(id) ? "paused" : ""}`}
+                key={id}
+              >
+                <button
+                  title={paused.includes(id) ? "Resume cue" : "Pause cue"}
+                  onClick={() => toggle(id)}
+                >
+                  {paused.includes(id) ? (
+                    <Play size={13} />
+                  ) : (
+                    <Pause size={13} />
+                  )}
+                </button>
+                <span>
+                  <strong>
+                    {cue?.number} - {cue?.name}
+                  </strong>
+                  <small>
+                    {time(elapsed)} elapsed; {time(remaining[id] || 0)}{" "}
+                    remaining
+                  </small>
+                  {total > 0 && (
+                    <input
+                      aria-label={`Scrub ${cue?.name}`}
+                      type="range"
+                      min="0"
+                      max={total}
+                      step="0.01"
+                      value={elapsed}
+                      onChange={(event) => seek(id, Number(event.target.value))}
+                    />
+                  )}
+                </span>
+                <button title="Panic cue" onClick={() => stop(id)}>
+                  <Square size={12} />
+                </button>
+              </div>
+            );
+          })
+        ) : (
+          <div className="empty">No active cues</div>
+        )}
+      </div>
+      <div className="side-actions">
+        {editable && (
+          <>
+            <button onClick={() => newList("list")}>New List</button>
+            <button onClick={() => newList("cart")}>New Cart</button>
+          </>
+        )}
+        <button onClick={openWindow}>Open in New Window</button>
+      </div>
+    </aside>
+  );
 }
 
-function Inspector({ cue, count, list, tab, setTab, patch, patchChild, preview, media, devices, settings, capturedMidi, resetGroup }) {
-  if (!cue) return <section className="inspector empty-inspector">No Cue Selected</section>;
-  const tabs = tabsForCue(cue), placeholder = { Text: "Text shown on stage", Group: "Group cues contain the indented cues below them", MIDI: "MIDI bytes, for example: 144,60,100", Light: "Fixture @ Full", Network: "HTTPS or WebSocket URL", Script: "JavaScript using the api object", Target: "Cue number=property:value" }[cue.type] || "Target cue number";
-  const trigger = (key, label, content) => <div className="trigger-row"><input type="checkbox" checked={cue[`${key}Enabled`]} onChange={(event) => patch({ [`${key}Enabled`]: event.target.checked })} /><strong>{label}</strong>{content}</div>;
-  return <section className="inspector"><div className="inspector-tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}{count > 1 && <small>{count} cues selected</small>}</div>
-    {tab === "Basics" && <div className="inspector-grid"><label>Number:<input value={cue.number} onChange={(event) => patch({ number: event.target.value })} /></label><label className="wide">Name:<input value={cue.name} onChange={(event) => patch({ name: event.target.value })} /></label><label>Duration:<input type="number" min="0" step="0.1" value={cue.duration} onChange={(event) => patch({ duration: Number(event.target.value) })} /></label><label>Target:<div className="target-input">{cue.type === "Script" ? <textarea value={cue.target} placeholder={placeholder} onChange={(event) => patch({ target: event.target.value })} /> : <input value={cue.type === "Group" ? `${childrenOf(list.cues, cue.id).length} child cues` : cue.fileName || cue.target} placeholder={placeholder} readOnly={["Audio", "Video", "MIDI File", "Group"].includes(cue.type)} onChange={(event) => patch({ target: event.target.value })} />}{["Audio", "Video", "MIDI File"].includes(cue.type) && <button onClick={media} title="Choose file"><FolderOpen size={15} /></button>}</div></label><label>Pre-Wait:<input type="number" min="0" step="0.1" value={cue.pre} onChange={(event) => patch({ pre: Number(event.target.value) })} /></label><label>Post-Wait:<input type="number" min="0" step="0.1" value={cue.post} onChange={(event) => patch({ post: Number(event.target.value) })} /></label><label>Continue:<select disabled={list.kind === "cart"} value={list.kind === "cart" ? "Do not continue" : cue.continueMode} onChange={(event) => patch({ continueMode: event.target.value })}><option>Do not continue</option><option>Auto continue</option><option>Auto follow</option></select></label><label className="notes">Notes:<textarea value={cue.notes} onChange={(event) => patch({ notes: event.target.value })} /></label><div className="checks"><label><input type="checkbox" checked={cue.flagged} onChange={(event) => patch({ flagged: event.target.checked })} />Flagged</label><label><input type="checkbox" checked={cue.armed} onChange={(event) => patch({ armed: event.target.checked })} />Armed</label><label><input type="checkbox" checked={cue.skipIfDisarmed} onChange={(event) => patch({ skipIfDisarmed: event.target.checked })} />Skip if disarmed</label><label><input type="checkbox" checked={cue.autoLoad} onChange={(event) => patch({ autoLoad: event.target.checked })} />Auto-load</label><label>Color:<select value={cue.color} onChange={(event) => patch({ color: event.target.value })}>{colors.map((color) => <option key={color}>{color}</option>)}</select></label><label>After start:<select value={cue.secondColor} onChange={(event) => patch({ secondColor: event.target.value })}>{colors.map((color) => <option key={color}>{color}</option>)}</select><input aria-label="Apply second color after start" type="checkbox" checked={cue.secondColorAfterStart} onChange={(event) => patch({ secondColorAfterStart: event.target.checked })} /></label></div></div>}
-    {tab === "Triggers" && <div className="trigger-settings">{trigger("hotkey", "Hotkey", <><input value={cue.hotkey} placeholder="Press a key combination" onKeyDown={(event) => { event.preventDefault(); patch({ hotkey: keyToken(event), hotkeyEnabled: true }); }} onChange={(event) => patch({ hotkey: event.target.value })} /><button onClick={() => patch({ hotkey: "" })}>Clear</button></>)}{trigger("wallClock", "Wall clock", <><input type="time" step="1" value={cue.wallClock} onChange={(event) => patch({ wallClock: event.target.value, wallClockEnabled: true, lastWallClock: "" })} /><div className="day-picker">{"SMTWTFS".split("").map((day, index) => <button className={cue.wallClockDays.includes(index) ? "active" : ""} key={index} onClick={() => patch({ wallClockDays: cue.wallClockDays.includes(index) ? cue.wallClockDays.filter((value) => value !== index) : [...cue.wallClockDays, index] })}>{day}</button>)}</div></>)}{trigger("midiTrigger", "MIDI", <><input value={cue.midiTrigger} placeholder="144,60,any" onChange={(event) => patch({ midiTrigger: event.target.value })} /><button disabled={!capturedMidi.length} onClick={() => patch({ midiTrigger: capturedMidi.join(","), midiTriggerEnabled: true })}>Capture {capturedMidi.join(" ")}</button></>)}{trigger("timecodeTrigger", "Timecode", <input value={cue.timecodeTrigger} placeholder="00:00:00:00" onChange={(event) => patch({ timecodeTrigger: event.target.value })} />)}<label>Second trigger:<select value={cue.secondTrigger} onChange={(event) => patch({ secondTrigger: event.target.value })}><option>Does nothing</option><option>Panics</option><option>Stops</option><option>Hard stops</option><option>Hard stops and restarts</option><option>Devamps</option></select></label><label><input type="checkbox" checked={cue.secondTriggerOnRelease} onChange={(event) => patch({ secondTriggerOnRelease: event.target.checked })} />Second trigger on release</label><label><input type="checkbox" checked={cue.fadeOthers} onChange={(event) => patch({ fadeOthers: event.target.checked })} />Fade and stop other cues</label>{cue.fadeOthers && <label>Fade duration:<input type="number" min="0" step=".1" value={cue.fadeOthersDuration} onChange={(event) => patch({ fadeOthersDuration: Number(event.target.value) })} /></label>}<label><input type="checkbox" checked={cue.duckOthers} onChange={(event) => patch({ duckOthers: event.target.checked })} />Duck other cues while running</label>{(cue.fadeOthers || cue.duckOthers) && <label>Other cue scope:<select value={cue.fadeOthersScope} onChange={(event) => patch({ fadeOthersScope: event.target.value })}><option>All other cues</option><option>Same list</option><option>Target cue</option></select></label>}{cue.duckOthers && <><label>Duck amount:<input type="number" min="-60" max="0" value={cue.duckAmount} onChange={(event) => patch({ duckAmount: Number(event.target.value) })} /> dB</label><label>Transition:<input type="number" min="0" step=".05" value={cue.duckDuration} onChange={(event) => patch({ duckDuration: Number(event.target.value) })} /></label></>}</div>}
-    {tab === "Mode" && <div className="mode-options">{["Timeline", "Start first and enter", "Start first", "Start random", "Playlist"].map((item) => <label key={item}><input type="radio" name="group-mode" checked={cue.groupMode === item} onChange={() => patch({ groupMode: item })} />{item}</label>)}{cue.groupMode === "Playlist" && <><label><input type="checkbox" checked={cue.playlistShuffle} onChange={(event) => patch({ playlistShuffle: event.target.checked })} />Auto-shuffle</label><label><input type="checkbox" checked={cue.playlistLoop} onChange={(event) => patch({ playlistLoop: event.target.checked })} />Loop until stopped</label><label>Crossfade seconds<input type="number" min="0" step="0.1" value={cue.playlistCrossfade} onChange={(event) => patch({ playlistCrossfade: Number(event.target.value) })} /></label><label>Fade-out curve<CurveSelect value={cue.playlistFadeOutCurve} change={(value) => patch({ playlistFadeOutCurve: value })} /></label><label>Fade-in curve<CurveSelect value={cue.playlistFadeInCurve} change={(value) => patch({ playlistFadeInCurve: value })} /></label><button onClick={resetGroup}>Reset playlist history</button></>}</div>}
-    {tab === "Timeline" && <TimelineEditor group={cue} items={childrenOf(list.cues, cue.id)} patch={patchChild} />}
-    {tab === "I/O" && <AudioRouting cue={cue} patch={patch} outputs={(settings.audioPatches.find((item) => item.id === cue.audioPatch)?.channels || settings.audioOutputChannels)} patches={settings.audioPatches} />}
-    {tab === "Action" && <Action cue={cue} patch={patch} preview={preview} devices={devices} settings={settings} />}
-    {tab === "Geometry" && <div className="panel-form"><VisualControls cue={cue} patch={patch} text={cue.type === "Text"} /></div>}
-    {tab === "Video FX" && <EffectsEditor effects={cue.videoEffects} patch={(videoEffects) => patch({ videoEffects })} video />}
-    {tab === "Levels" && (cue.type === "Fade" ? <FadeEditor cue={cue} patch={patch} /> : <div className="panel-form"><label>Level:<input type="range" min="0" max="100" value={cue.volume} onChange={(event) => patch({ volume: Number(event.target.value) })} /></label><strong>{cue.volume} percent</strong></div>)}
-    {tab === "Trim" && <AudioTrim cue={cue} patch={patch} outputs={settings.audioPatches.find((item) => item.id === cue.audioPatch)?.channels || settings.audioOutputChannels} />}
-    {tab === "Audio FX" && <EffectsEditor effects={cue.effects} patch={(effects) => patch({ effects })} />}
-    {tab === "Time & Loops" && (cue.type === "Audio" ? <AudioEditor cue={cue} patch={patch} preview={preview} /> : <VideoEditor cue={cue} patch={patch} preview={preview} />)}
-  </section>;
+function Inspector({
+  cue,
+  count,
+  list,
+  tab,
+  setTab,
+  patch,
+  patchChild,
+  preview,
+  media,
+  devices,
+  settings,
+  capturedMidi,
+  resetGroup,
+}) {
+  if (!cue)
+    return (
+      <section className="inspector empty-inspector">No Cue Selected</section>
+    );
+  const tabs = tabsForCue(cue),
+    placeholder =
+      {
+        Text: "Text shown on stage",
+        Group: "Group cues contain the indented cues below them",
+        MIDI: "MIDI bytes, for example: 144,60,100",
+        Light: "Fixture @ Full",
+        Network: "HTTPS or WebSocket URL",
+        Script: "JavaScript using the api object",
+        Target: "Cue number=property:value",
+      }[cue.type] || "Target cue number";
+  const trigger = (key, label, content) => (
+    <div className="trigger-row">
+      <input
+        type="checkbox"
+        checked={cue[`${key}Enabled`]}
+        onChange={(event) => patch({ [`${key}Enabled`]: event.target.checked })}
+      />
+      <strong>{label}</strong>
+      {content}
+    </div>
+  );
+  return (
+    <section className="inspector">
+      <div className="inspector-tabs">
+        {tabs.map((item) => (
+          <button
+            key={item}
+            className={tab === item ? "active" : ""}
+            onClick={() => setTab(item)}
+          >
+            {item}
+          </button>
+        ))}
+        {count > 1 && <small>{count} cues selected</small>}
+      </div>
+      {tab === "Basics" && (
+        <div className="inspector-grid">
+          <label>
+            Number:
+            <input
+              value={cue.number}
+              onChange={(event) => patch({ number: event.target.value })}
+            />
+          </label>
+          <label className="wide">
+            Name:
+            <input
+              value={cue.name}
+              onChange={(event) => patch({ name: event.target.value })}
+            />
+          </label>
+          <label>
+            Duration:
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={cue.duration}
+              onChange={(event) =>
+                patch({ duration: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Target:
+            <div className="target-input">
+              {cue.type === "Script" ? (
+                <textarea
+                  value={cue.target}
+                  placeholder={placeholder}
+                  onChange={(event) => patch({ target: event.target.value })}
+                />
+              ) : (
+                <input
+                  value={
+                    cue.type === "Group"
+                      ? `${childrenOf(list.cues, cue.id).length} child cues`
+                      : cue.fileName || cue.target
+                  }
+                  placeholder={placeholder}
+                  readOnly={["Audio", "Video", "MIDI File", "Group"].includes(
+                    cue.type,
+                  )}
+                  onChange={(event) => patch({ target: event.target.value })}
+                />
+              )}
+              {["Audio", "Video", "MIDI File"].includes(cue.type) && (
+                <button onClick={media} title="Choose file">
+                  <FolderOpen size={15} />
+                </button>
+              )}
+            </div>
+          </label>
+          <label>
+            Pre-Wait:
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={cue.pre}
+              onChange={(event) => patch({ pre: Number(event.target.value) })}
+            />
+          </label>
+          <label>
+            Post-Wait:
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={cue.post}
+              onChange={(event) => patch({ post: Number(event.target.value) })}
+            />
+          </label>
+          <label>
+            Continue:
+            <select
+              disabled={list.kind === "cart"}
+              value={
+                list.kind === "cart" ? "Do not continue" : cue.continueMode
+              }
+              onChange={(event) => patch({ continueMode: event.target.value })}
+            >
+              <option>Do not continue</option>
+              <option>Auto continue</option>
+              <option>Auto follow</option>
+            </select>
+          </label>
+          <label className="notes">
+            Notes:
+            <textarea
+              value={cue.notes}
+              onChange={(event) => patch({ notes: event.target.value })}
+            />
+          </label>
+          <div className="checks">
+            <label>
+              <input
+                type="checkbox"
+                checked={cue.flagged}
+                onChange={(event) => patch({ flagged: event.target.checked })}
+              />
+              Flagged
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={cue.armed}
+                onChange={(event) => patch({ armed: event.target.checked })}
+              />
+              Armed
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={cue.skipIfDisarmed}
+                onChange={(event) =>
+                  patch({ skipIfDisarmed: event.target.checked })
+                }
+              />
+              Skip if disarmed
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={cue.autoLoad}
+                onChange={(event) => patch({ autoLoad: event.target.checked })}
+              />
+              Auto-load
+            </label>
+            <label>
+              Color:
+              <select
+                value={cue.color}
+                onChange={(event) => patch({ color: event.target.value })}
+              >
+                {colors.map((color) => (
+                  <option key={color}>{color}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              After start:
+              <select
+                value={cue.secondColor}
+                onChange={(event) => patch({ secondColor: event.target.value })}
+              >
+                {colors.map((color) => (
+                  <option key={color}>{color}</option>
+                ))}
+              </select>
+              <input
+                aria-label="Apply second color after start"
+                type="checkbox"
+                checked={cue.secondColorAfterStart}
+                onChange={(event) =>
+                  patch({ secondColorAfterStart: event.target.checked })
+                }
+              />
+            </label>
+          </div>
+        </div>
+      )}
+      {tab === "Triggers" && (
+        <div className="trigger-settings">
+          {trigger(
+            "hotkey",
+            "Hotkey",
+            <>
+              <input
+                value={cue.hotkey}
+                placeholder="Press a key combination"
+                onKeyDown={(event) => {
+                  event.preventDefault();
+                  patch({ hotkey: keyToken(event), hotkeyEnabled: true });
+                }}
+                onChange={(event) => patch({ hotkey: event.target.value })}
+              />
+              <button onClick={() => patch({ hotkey: "" })}>Clear</button>
+            </>,
+          )}
+          {trigger(
+            "wallClock",
+            "Wall clock",
+            <>
+              <input
+                type="time"
+                step="1"
+                value={cue.wallClock}
+                onChange={(event) =>
+                  patch({
+                    wallClock: event.target.value,
+                    wallClockEnabled: true,
+                    lastWallClock: "",
+                  })
+                }
+              />
+              <div className="day-picker">
+                {"SMTWTFS".split("").map((day, index) => (
+                  <button
+                    className={
+                      cue.wallClockDays.includes(index) ? "active" : ""
+                    }
+                    key={index}
+                    onClick={() =>
+                      patch({
+                        wallClockDays: cue.wallClockDays.includes(index)
+                          ? cue.wallClockDays.filter((value) => value !== index)
+                          : [...cue.wallClockDays, index],
+                      })
+                    }
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </>,
+          )}
+          {trigger(
+            "midiTrigger",
+            "MIDI",
+            <>
+              <input
+                value={cue.midiTrigger}
+                placeholder="144,60,any"
+                onChange={(event) => patch({ midiTrigger: event.target.value })}
+              />
+              <button
+                disabled={!capturedMidi.length}
+                onClick={() =>
+                  patch({
+                    midiTrigger: capturedMidi.join(","),
+                    midiTriggerEnabled: true,
+                  })
+                }
+              >
+                Capture {capturedMidi.join(" ")}
+              </button>
+            </>,
+          )}
+          {trigger(
+            "timecodeTrigger",
+            "Timecode",
+            <input
+              value={cue.timecodeTrigger}
+              placeholder="00:00:00:00"
+              onChange={(event) =>
+                patch({ timecodeTrigger: event.target.value })
+              }
+            />,
+          )}
+          <label>
+            Second trigger:
+            <select
+              value={cue.secondTrigger}
+              onChange={(event) => patch({ secondTrigger: event.target.value })}
+            >
+              <option>Does nothing</option>
+              <option>Panics</option>
+              <option>Stops</option>
+              <option>Hard stops</option>
+              <option>Hard stops and restarts</option>
+              <option>Devamps</option>
+            </select>
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={cue.secondTriggerOnRelease}
+              onChange={(event) =>
+                patch({ secondTriggerOnRelease: event.target.checked })
+              }
+            />
+            Second trigger on release
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={cue.fadeOthers}
+              onChange={(event) => patch({ fadeOthers: event.target.checked })}
+            />
+            Fade and stop other cues
+          </label>
+          {cue.fadeOthers && (
+            <label>
+              Fade duration:
+              <input
+                type="number"
+                min="0"
+                step=".1"
+                value={cue.fadeOthersDuration}
+                onChange={(event) =>
+                  patch({ fadeOthersDuration: Number(event.target.value) })
+                }
+              />
+            </label>
+          )}
+          <label>
+            <input
+              type="checkbox"
+              checked={cue.duckOthers}
+              onChange={(event) => patch({ duckOthers: event.target.checked })}
+            />
+            Duck other cues while running
+          </label>
+          {(cue.fadeOthers || cue.duckOthers) && (
+            <label>
+              Other cue scope:
+              <select
+                value={cue.fadeOthersScope}
+                onChange={(event) =>
+                  patch({ fadeOthersScope: event.target.value })
+                }
+              >
+                <option>All other cues</option>
+                <option>Same list</option>
+                <option>Target cue</option>
+              </select>
+            </label>
+          )}
+          {cue.duckOthers && (
+            <>
+              <label>
+                Duck amount:
+                <input
+                  type="number"
+                  min="-60"
+                  max="0"
+                  value={cue.duckAmount}
+                  onChange={(event) =>
+                    patch({ duckAmount: Number(event.target.value) })
+                  }
+                />{" "}
+                dB
+              </label>
+              <label>
+                Transition:
+                <input
+                  type="number"
+                  min="0"
+                  step=".05"
+                  value={cue.duckDuration}
+                  onChange={(event) =>
+                    patch({ duckDuration: Number(event.target.value) })
+                  }
+                />
+              </label>
+            </>
+          )}
+        </div>
+      )}
+      {tab === "Mode" && (
+        <div className="mode-options">
+          {[
+            "Timeline",
+            "Start first and enter",
+            "Start first",
+            "Start random",
+            "Playlist",
+          ].map((item) => (
+            <label key={item}>
+              <input
+                type="radio"
+                name="group-mode"
+                checked={cue.groupMode === item}
+                onChange={() => patch({ groupMode: item })}
+              />
+              {item}
+            </label>
+          ))}
+          {cue.groupMode === "Playlist" && (
+            <>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={cue.playlistShuffle}
+                  onChange={(event) =>
+                    patch({ playlistShuffle: event.target.checked })
+                  }
+                />
+                Auto-shuffle
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={cue.playlistLoop}
+                  onChange={(event) =>
+                    patch({ playlistLoop: event.target.checked })
+                  }
+                />
+                Loop until stopped
+              </label>
+              <label>
+                Crossfade seconds
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={cue.playlistCrossfade}
+                  onChange={(event) =>
+                    patch({ playlistCrossfade: Number(event.target.value) })
+                  }
+                />
+              </label>
+              <label>
+                Fade-out curve
+                <CurveSelect
+                  value={cue.playlistFadeOutCurve}
+                  change={(value) => patch({ playlistFadeOutCurve: value })}
+                />
+              </label>
+              <label>
+                Fade-in curve
+                <CurveSelect
+                  value={cue.playlistFadeInCurve}
+                  change={(value) => patch({ playlistFadeInCurve: value })}
+                />
+              </label>
+              <button onClick={resetGroup}>Reset playlist history</button>
+            </>
+          )}
+        </div>
+      )}
+      {tab === "Timeline" && (
+        <TimelineEditor
+          group={cue}
+          items={childrenOf(list.cues, cue.id)}
+          patch={patchChild}
+        />
+      )}
+      {tab === "I/O" && (
+        <AudioRouting
+          cue={cue}
+          patch={patch}
+          outputs={
+            settings.audioPatches.find((item) => item.id === cue.audioPatch)
+              ?.channels || settings.audioOutputChannels
+          }
+          patches={settings.audioPatches}
+        />
+      )}
+      {tab === "Action" && (
+        <Action
+          cue={cue}
+          patch={patch}
+          preview={preview}
+          devices={devices}
+          settings={settings}
+        />
+      )}
+      {tab === "Geometry" && (
+        <div className="panel-form">
+          <VisualControls cue={cue} patch={patch} text={cue.type === "Text"} />
+        </div>
+      )}
+      {tab === "Video FX" && (
+        <EffectsEditor
+          effects={cue.videoEffects}
+          patch={(videoEffects) => patch({ videoEffects })}
+          video
+        />
+      )}
+      {tab === "Levels" &&
+        (cue.type === "Fade" ? (
+          <FadeEditor cue={cue} patch={patch} />
+        ) : (
+          <div className="panel-form">
+            <label>
+              Level:
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={cue.volume}
+                onChange={(event) =>
+                  patch({ volume: Number(event.target.value) })
+                }
+              />
+            </label>
+            <strong>{cue.volume} percent</strong>
+          </div>
+        ))}
+      {tab === "Trim" && (
+        <AudioTrim
+          cue={cue}
+          patch={patch}
+          outputs={
+            settings.audioPatches.find((item) => item.id === cue.audioPatch)
+              ?.channels || settings.audioOutputChannels
+          }
+        />
+      )}
+      {tab === "Audio FX" && (
+        <EffectsEditor
+          effects={cue.effects}
+          patch={(effects) => patch({ effects })}
+        />
+      )}
+      {tab === "Time & Loops" &&
+        (cue.type === "Audio" ? (
+          <AudioEditor cue={cue} patch={patch} preview={preview} />
+        ) : (
+          <VideoEditor cue={cue} patch={patch} preview={preview} />
+        ))}
+    </section>
+  );
 }
 function Waveform({ cue, patch, onPick }) {
-  const canvas = useRef(null), dragging = useRef("");
+  const canvas = useRef(null),
+    dragging = useRef("");
   useEffect(() => {
-    const node = canvas.current, context = node?.getContext("2d"); if (!context) return;
-    const width = node.clientWidth * devicePixelRatio, height = node.clientHeight * devicePixelRatio; node.width = width; node.height = height; context.clearRect(0, 0, width, height); context.fillStyle = "#202329"; context.fillRect(0, 0, width, height);
-    const channels = cue.waveform?.length || 1, channelHeight = height / channels; context.strokeStyle = "#65a9db"; context.lineWidth = devicePixelRatio;
-    (cue.waveform || []).forEach((peaks, channel) => { const middle = channelHeight * (channel + .5); context.beginPath(); peaks.forEach((peak, index) => { const x = index / Math.max(1, peaks.length - 1) * width, y = peak * channelHeight * .46; context.moveTo(x, middle - y); context.lineTo(x, middle + y); }); context.stroke(); });
-    const duration = cue.duration || 1, start = (cue.trimStart || 0) / duration * width, end = (cue.trimEnd || duration) / duration * width; context.fillStyle = "#0008"; context.fillRect(0, 0, start, height); context.fillRect(end, 0, width - end, height); context.strokeStyle = "#ffb74d"; context.strokeRect(start, 0, Math.max(1, end - start), height);
-    context.strokeStyle = "#52d47b"; context.fillStyle = "#52d47b"; context.font = `${11 * devicePixelRatio}px system-ui`; (cue.slices || []).forEach((slice, index) => { const x = slice.at / duration * width; context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); context.fillText(String(index + 1), x + 3, height - 5); });
+    const node = canvas.current,
+      context = node?.getContext("2d");
+    if (!context) return;
+    const width = node.clientWidth * devicePixelRatio,
+      height = node.clientHeight * devicePixelRatio;
+    node.width = width;
+    node.height = height;
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = "#202329";
+    context.fillRect(0, 0, width, height);
+    const channels = cue.waveform?.length || 1,
+      channelHeight = height / channels;
+    context.strokeStyle = "#65a9db";
+    context.lineWidth = devicePixelRatio;
+    (cue.waveform || []).forEach((peaks, channel) => {
+      const middle = channelHeight * (channel + 0.5);
+      context.beginPath();
+      peaks.forEach((peak, index) => {
+        const x = (index / Math.max(1, peaks.length - 1)) * width,
+          y = peak * channelHeight * 0.46;
+        context.moveTo(x, middle - y);
+        context.lineTo(x, middle + y);
+      });
+      context.stroke();
+    });
+    const duration = cue.duration || 1,
+      start = ((cue.trimStart || 0) / duration) * width,
+      end = ((cue.trimEnd || duration) / duration) * width;
+    context.fillStyle = "#0008";
+    context.fillRect(0, 0, start, height);
+    context.fillRect(end, 0, width - end, height);
+    context.strokeStyle = "#ffb74d";
+    context.strokeRect(start, 0, Math.max(1, end - start), height);
+    context.strokeStyle = "#52d47b";
+    context.fillStyle = "#52d47b";
+    context.font = `${11 * devicePixelRatio}px system-ui`;
+    (cue.slices || []).forEach((slice, index) => {
+      const x = (slice.at / duration) * width;
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x, height);
+      context.stroke();
+      context.fillText(String(index + 1), x + 3, height - 5);
+    });
   }, [cue.waveform, cue.trimStart, cue.trimEnd, cue.duration, cue.slices]);
-  const at = (event) => Math.max(0, Math.min(cue.duration, event.nativeEvent.offsetX / event.currentTarget.clientWidth * cue.duration));
-  return <canvas className="waveform" ref={canvas} onPointerDown={(event) => { const value = at(event), end = cue.trimEnd || cue.duration; dragging.current = Math.abs(value - (cue.trimStart || 0)) < Math.abs(value - end) ? "trimStart" : "trimEnd"; event.currentTarget.setPointerCapture(event.pointerId); patch({ [dragging.current]: value }); }} onPointerMove={(event) => { if (!dragging.current) return; const value = at(event); patch(dragging.current === "trimStart" ? { trimStart: Math.min(value, cue.trimEnd || cue.duration) } : { trimEnd: Math.max(value, cue.trimStart || 0) }); }} onPointerUp={(event) => { dragging.current = ""; event.currentTarget.releasePointerCapture(event.pointerId); }} onClick={(event) => onPick(at(event))} />;
+  const at = (event) =>
+    Math.max(
+      0,
+      Math.min(
+        cue.duration,
+        (event.nativeEvent.offsetX / event.currentTarget.clientWidth) *
+          cue.duration,
+      ),
+    );
+  return (
+    <canvas
+      className="waveform"
+      ref={canvas}
+      onPointerDown={(event) => {
+        const value = at(event),
+          end = cue.trimEnd || cue.duration;
+        dragging.current =
+          Math.abs(value - (cue.trimStart || 0)) < Math.abs(value - end)
+            ? "trimStart"
+            : "trimEnd";
+        event.currentTarget.setPointerCapture(event.pointerId);
+        patch({ [dragging.current]: value });
+      }}
+      onPointerMove={(event) => {
+        if (!dragging.current) return;
+        const value = at(event);
+        patch(
+          dragging.current === "trimStart"
+            ? { trimStart: Math.min(value, cue.trimEnd || cue.duration) }
+            : { trimEnd: Math.max(value, cue.trimStart || 0) },
+        );
+      }}
+      onPointerUp={(event) => {
+        dragging.current = "";
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onClick={(event) => onPick(at(event))}
+    />
+  );
 }
 function AudioEditor({ cue, patch, preview }) {
-  const end = cue.trimEnd || cue.duration, [cursor, setCursor] = useState(0), slices = cue.slices || [];
-  const addSlice = () => { if (cursor <= (cue.trimStart || 0) || cursor >= end || slices.some((slice) => Math.abs(slice.at - cursor) < .01)) return; patch({ slices: [...slices, { at: cursor, count: 1 }].sort((a, b) => a.at - b.at) }); };
-  return <div className="audio-editor"><div className="trim-times"><label>Start time:<input type="number" min="0" max={end} step="0.01" value={cue.trimStart || 0} onChange={(event) => patch({ trimStart: Math.min(end, Number(event.target.value)) })} /></label><label>End time:<input type="number" min={cue.trimStart || 0} max={cue.duration} step="0.01" value={end} onChange={(event) => patch({ trimEnd: Math.max(cue.trimStart || 0, Number(event.target.value)) })} /></label><span>Cursor {time(cursor)}</span><button onClick={addSlice}>Add Slice</button></div><Waveform cue={cue} patch={patch} onPick={setCursor} /><div className="slice-list">{slices.map((slice, index) => <label key={`${slice.at}-${index}`}>{time(slice.at)}<input aria-label={`Slice ${index + 1} time`} type="number" min={cue.trimStart || 0} max={end} step="0.01" value={slice.at} onChange={(event) => patch({ slices: slices.map((item, itemIndex) => itemIndex === index ? { ...item, at: Number(event.target.value) } : item).sort((a, b) => a.at - b.at) })} /><span>plays</span><input aria-label={`Slice ${index + 1} count`} type="number" min="-1" value={slice.count} onChange={(event) => patch({ slices: slices.map((item, itemIndex) => itemIndex === index ? { ...item, count: Number(event.target.value) } : item) })} /><button onClick={() => patch({ slices: slices.filter((_, itemIndex) => itemIndex !== index) })}>Delete</button></label>)}</div><div className="audio-controls"><label>Play count:<input type="number" min="0" value={cue.loops} onChange={(event) => patch({ loops: Number(event.target.value) })} /></label><label>Rate:<input type="number" min="3" max="3300" value={cue.rate} onChange={(event) => patch({ rate: Number(event.target.value) })} /> percent</label><label><input type="checkbox" checked={cue.preservePitch} onChange={(event) => patch({ preservePitch: event.target.checked })} />Preserve pitch</label><label>Fade in:<input type="number" min="0" step="0.1" value={cue.fadeIn} onChange={(event) => patch({ fadeIn: Number(event.target.value) })} /></label><label>Fade out:<input type="number" min="0" step="0.1" value={cue.fadeOut} onChange={(event) => patch({ fadeOut: Number(event.target.value) })} /></label><button onClick={preview}>Preview</button></div></div>;
+  const end = cue.trimEnd || cue.duration,
+    [cursor, setCursor] = useState(0),
+    slices = cue.slices || [];
+  const addSlice = () => {
+    if (
+      cursor <= (cue.trimStart || 0) ||
+      cursor >= end ||
+      slices.some((slice) => Math.abs(slice.at - cursor) < 0.01)
+    )
+      return;
+    patch({
+      slices: [...slices, { at: cursor, count: 1 }].sort((a, b) => a.at - b.at),
+    });
+  };
+  return (
+    <div className="audio-editor">
+      <div className="trim-times">
+        <label>
+          Start time:
+          <input
+            type="number"
+            min="0"
+            max={end}
+            step="0.01"
+            value={cue.trimStart || 0}
+            onChange={(event) =>
+              patch({ trimStart: Math.min(end, Number(event.target.value)) })
+            }
+          />
+        </label>
+        <label>
+          End time:
+          <input
+            type="number"
+            min={cue.trimStart || 0}
+            max={cue.duration}
+            step="0.01"
+            value={end}
+            onChange={(event) =>
+              patch({
+                trimEnd: Math.max(
+                  cue.trimStart || 0,
+                  Number(event.target.value),
+                ),
+              })
+            }
+          />
+        </label>
+        <span>Cursor {time(cursor)}</span>
+        <button onClick={addSlice}>Add Slice</button>
+      </div>
+      <Waveform cue={cue} patch={patch} onPick={setCursor} />
+      <div className="slice-list">
+        {slices.map((slice, index) => (
+          <label key={`${slice.at}-${index}`}>
+            {time(slice.at)}
+            <input
+              aria-label={`Slice ${index + 1} time`}
+              type="number"
+              min={cue.trimStart || 0}
+              max={end}
+              step="0.01"
+              value={slice.at}
+              onChange={(event) =>
+                patch({
+                  slices: slices
+                    .map((item, itemIndex) =>
+                      itemIndex === index
+                        ? { ...item, at: Number(event.target.value) }
+                        : item,
+                    )
+                    .sort((a, b) => a.at - b.at),
+                })
+              }
+            />
+            <span>plays</span>
+            <input
+              aria-label={`Slice ${index + 1} count`}
+              type="number"
+              min="-1"
+              value={slice.count}
+              onChange={(event) =>
+                patch({
+                  slices: slices.map((item, itemIndex) =>
+                    itemIndex === index
+                      ? { ...item, count: Number(event.target.value) }
+                      : item,
+                  ),
+                })
+              }
+            />
+            <button
+              onClick={() =>
+                patch({
+                  slices: slices.filter((_, itemIndex) => itemIndex !== index),
+                })
+              }
+            >
+              Delete
+            </button>
+          </label>
+        ))}
+      </div>
+      <div className="audio-controls">
+        <label>
+          Play count:
+          <input
+            type="number"
+            min="0"
+            value={cue.loops}
+            onChange={(event) => patch({ loops: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          Rate:
+          <input
+            type="number"
+            min="3"
+            max="3300"
+            value={cue.rate}
+            onChange={(event) => patch({ rate: Number(event.target.value) })}
+          />{" "}
+          percent
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={cue.preservePitch}
+            onChange={(event) => patch({ preservePitch: event.target.checked })}
+          />
+          Preserve pitch
+        </label>
+        <label>
+          Fade in:
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={cue.fadeIn}
+            onChange={(event) => patch({ fadeIn: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          Fade out:
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={cue.fadeOut}
+            onChange={(event) => patch({ fadeOut: Number(event.target.value) })}
+          />
+        </label>
+        <button onClick={preview}>Preview</button>
+      </div>
+    </div>
+  );
 }
 function VideoEditor({ cue, patch, preview }) {
-  const end = cue.trimEnd || cue.duration, slices = cue.slices || [];
-  return <div className="media-editor"><div className="media-strip"><div style={{ left: `${(cue.trimStart || 0) / Math.max(1, cue.duration) * 100}%`, width: `${Math.max(1, (end - (cue.trimStart || 0)) / Math.max(1, cue.duration) * 100)}%` }}>{time(cue.trimStart)} to {time(end)}</div></div><div className="panel-form"><label>Start:<input type="number" min="0" max={end} step=".01" value={cue.trimStart} onChange={(event) => patch({ trimStart: Math.min(end, Number(event.target.value)) })} /></label><label>End:<input type="number" min={cue.trimStart} max={cue.duration} step=".01" value={end} onChange={(event) => patch({ trimEnd: Math.max(cue.trimStart, Number(event.target.value)) })} /></label><label>Rate:<input type="number" min="3" max="3300" value={cue.rate} onChange={(event) => patch({ rate: Number(event.target.value) })} /></label><label><input type="checkbox" checked={cue.preservePitch} onChange={(event) => patch({ preservePitch: event.target.checked })} />Preserve pitch</label><label>Loops:<input type="number" min="0" value={cue.loops} onChange={(event) => patch({ loops: Number(event.target.value) })} /></label><label><input type="checkbox" checked={cue.holdAtEnd} onChange={(event) => patch({ holdAtEnd: event.target.checked })} />Hold at end</label><label>Fade in:<input type="number" min="0" step=".1" value={cue.fadeIn} onChange={(event) => patch({ fadeIn: Number(event.target.value) })} /></label><label>Fade out:<input type="number" min="0" step=".1" value={cue.fadeOut} onChange={(event) => patch({ fadeOut: Number(event.target.value) })} /></label><label>Slice markers:<input value={slices.map((slice) => slice.at).join(", ")} onChange={(event) => patch({ slices: event.target.value.split(",").map(Number).filter(Number.isFinite).map((at) => ({ at, count: 1 })) })} /></label><button onClick={preview}>Preview</button></div></div>;
+  const end = cue.trimEnd || cue.duration,
+    slices = cue.slices || [];
+  return (
+    <div className="media-editor">
+      <div className="media-strip">
+        <div
+          style={{
+            left: `${((cue.trimStart || 0) / Math.max(1, cue.duration)) * 100}%`,
+            width: `${Math.max(1, ((end - (cue.trimStart || 0)) / Math.max(1, cue.duration)) * 100)}%`,
+          }}
+        >
+          {time(cue.trimStart)} to {time(end)}
+        </div>
+      </div>
+      <div className="panel-form">
+        <label>
+          Start:
+          <input
+            type="number"
+            min="0"
+            max={end}
+            step=".01"
+            value={cue.trimStart}
+            onChange={(event) =>
+              patch({ trimStart: Math.min(end, Number(event.target.value)) })
+            }
+          />
+        </label>
+        <label>
+          End:
+          <input
+            type="number"
+            min={cue.trimStart}
+            max={cue.duration}
+            step=".01"
+            value={end}
+            onChange={(event) =>
+              patch({
+                trimEnd: Math.max(cue.trimStart, Number(event.target.value)),
+              })
+            }
+          />
+        </label>
+        <label>
+          Rate:
+          <input
+            type="number"
+            min="3"
+            max="3300"
+            value={cue.rate}
+            onChange={(event) => patch({ rate: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={cue.preservePitch}
+            onChange={(event) => patch({ preservePitch: event.target.checked })}
+          />
+          Preserve pitch
+        </label>
+        <label>
+          Loops:
+          <input
+            type="number"
+            min="0"
+            value={cue.loops}
+            onChange={(event) => patch({ loops: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={cue.holdAtEnd}
+            onChange={(event) => patch({ holdAtEnd: event.target.checked })}
+          />
+          Hold at end
+        </label>
+        <label>
+          Fade in:
+          <input
+            type="number"
+            min="0"
+            step=".1"
+            value={cue.fadeIn}
+            onChange={(event) => patch({ fadeIn: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          Fade out:
+          <input
+            type="number"
+            min="0"
+            step=".1"
+            value={cue.fadeOut}
+            onChange={(event) => patch({ fadeOut: Number(event.target.value) })}
+          />
+        </label>
+        <label>
+          Slice markers:
+          <input
+            value={slices.map((slice) => slice.at).join(", ")}
+            onChange={(event) =>
+              patch({
+                slices: event.target.value
+                  .split(",")
+                  .map(Number)
+                  .filter(Number.isFinite)
+                  .map((at) => ({ at, count: 1 })),
+              })
+            }
+          />
+        </label>
+        <button onClick={preview}>Preview</button>
+      </div>
+    </div>
+  );
 }
-function CurveSelect({ value, change }) { return <select value={value} onChange={(event) => change(event.target.value)}><option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="ease-in-out">Ease in and out</option><option value="s-curve">S-curve</option></select>; }
+function CurveSelect({ value, change }) {
+  return (
+    <select value={value} onChange={(event) => change(event.target.value)}>
+      <option value="linear">Linear</option>
+      <option value="ease-in">Ease in</option>
+      <option value="ease-out">Ease out</option>
+      <option value="ease-in-out">Ease in and out</option>
+      <option value="s-curve">S-curve</option>
+    </select>
+  );
+}
 function TimelineEditor({ group, items, patch }) {
   const length = Math.max(10, timelineLength(items));
-  return <div className="timeline"><div className="ruler">0 sec <span>{time(length / 2)}</span><span>{time(length)}</span></div>{items.map((child) => <div className="timeline-track editable" key={child.id}><div style={{ marginLeft: `${child.pre / length * 100}%`, width: `${Math.max(2, child.duration / length * 100)}%` }}>{child.number} - {child.name}</div><input aria-label={`Timeline start ${child.name}`} type="range" min="0" max={length} step=".05" value={child.pre} onChange={(event) => patch(child.id, { pre: Number(event.target.value) })} /><label>Start <input type="number" min="0" step=".05" value={child.pre} onChange={(event) => patch(child.id, { pre: Number(event.target.value) })} /></label><label>Duration <input type="number" min="0" step=".05" value={child.duration} onChange={(event) => patch(child.id, { duration: Number(event.target.value) })} /></label><label>Post <input type="number" min="0" step=".05" value={child.post} onChange={(event) => patch(child.id, { post: Number(event.target.value) })} /></label></div>)}{!items.length && <p>Add cues beneath {group.name} to edit their timing.</p>}</div>;
+  return (
+    <div className="timeline">
+      <div className="ruler">
+        0 sec <span>{time(length / 2)}</span>
+        <span>{time(length)}</span>
+      </div>
+      {items.map((child) => (
+        <div className="timeline-track editable" key={child.id}>
+          <div
+            style={{
+              marginLeft: `${(child.pre / length) * 100}%`,
+              width: `${Math.max(2, (child.duration / length) * 100)}%`,
+            }}
+          >
+            {child.number} - {child.name}
+          </div>
+          <input
+            aria-label={`Timeline start ${child.name}`}
+            type="range"
+            min="0"
+            max={length}
+            step=".05"
+            value={child.pre}
+            onChange={(event) =>
+              patch(child.id, { pre: Number(event.target.value) })
+            }
+          />
+          <label>
+            Start{" "}
+            <input
+              type="number"
+              min="0"
+              step=".05"
+              value={child.pre}
+              onChange={(event) =>
+                patch(child.id, { pre: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Duration{" "}
+            <input
+              type="number"
+              min="0"
+              step=".05"
+              value={child.duration}
+              onChange={(event) =>
+                patch(child.id, { duration: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Post{" "}
+            <input
+              type="number"
+              min="0"
+              step=".05"
+              value={child.post}
+              onChange={(event) =>
+                patch(child.id, { post: Number(event.target.value) })
+              }
+            />
+          </label>
+        </div>
+      ))}
+      {!items.length && (
+        <p>Add cues beneath {group.name} to edit their timing.</p>
+      )}
+    </div>
+  );
 }
 function FadeEditor({ cue, patch }) {
-  const parameters = [["volume", "Audio level", 0, 100], ["opacity", "Opacity", 0, 100], ["rate", "Playback rate", 3, 3300], ["x", "X position", -4000, 4000], ["y", "Y position", -4000, 4000], ["scale", "Scale", 1, 1000], ["rotation", "Rotation", -360, 360], ["rotateX", "X rotation", -360, 360], ["rotateY", "Y rotation", -360, 360]];
-  return <div className="fade-editor"><div><label><input type="checkbox" checked={cue.fadeRelative} onChange={(event) => patch({ fadeRelative: event.target.checked })} />Relative fade</label><label>Curve <CurveSelect value={cue.fadeCurve} change={(fadeCurve) => patch({ fadeCurve })} /></label></div>{parameters.map(([key, label, min, max]) => <label key={key}><input type="checkbox" checked={Boolean(cue.fadeParameters?.[key])} onChange={(event) => patch({ fadeParameters: { ...cue.fadeParameters, [key]: event.target.checked } })} /><span>{label}</span><input type="number" min={min} max={max} value={cue.fadeValues?.[key] ?? cue[key]} onChange={(event) => patch({ fadeValues: { ...cue.fadeValues, [key]: Number(event.target.value) } })} /></label>)}</div>;
+  const parameters = [
+    ["volume", "Audio level", 0, 100],
+    ["opacity", "Opacity", 0, 100],
+    ["rate", "Playback rate", 3, 3300],
+    ["x", "X position", -4000, 4000],
+    ["y", "Y position", -4000, 4000],
+    ["scale", "Scale", 1, 1000],
+    ["rotation", "Rotation", -360, 360],
+    ["rotateX", "X rotation", -360, 360],
+    ["rotateY", "Y rotation", -360, 360],
+  ];
+  return (
+    <div className="fade-editor">
+      <div>
+        <label>
+          <input
+            type="checkbox"
+            checked={cue.fadeRelative}
+            onChange={(event) => patch({ fadeRelative: event.target.checked })}
+          />
+          Relative fade
+        </label>
+        <label>
+          Curve{" "}
+          <CurveSelect
+            value={cue.fadeCurve}
+            change={(fadeCurve) => patch({ fadeCurve })}
+          />
+        </label>
+      </div>
+      {parameters.map(([key, label, min, max]) => (
+        <label key={key}>
+          <input
+            type="checkbox"
+            checked={Boolean(cue.fadeParameters?.[key])}
+            onChange={(event) =>
+              patch({
+                fadeParameters: {
+                  ...cue.fadeParameters,
+                  [key]: event.target.checked,
+                },
+              })
+            }
+          />
+          <span>{label}</span>
+          <input
+            type="number"
+            min={min}
+            max={max}
+            value={cue.fadeValues?.[key] ?? cue[key]}
+            onChange={(event) =>
+              patch({
+                fadeValues: {
+                  ...cue.fadeValues,
+                  [key]: Number(event.target.value),
+                },
+              })
+            }
+          />
+        </label>
+      ))}
+    </div>
+  );
 }
 function EffectsEditor({ effects = [], patch, video = false }) {
-  const types = video ? ["brightness", "contrast", "saturate", "hue-rotate", "blur", "sepia"] : ["gain", "highpass", "lowpass", "peaking", "lowshelf", "highshelf", "compressor", "delay", "distortion"];
-  const update = (index, value) => patch(effects.map((effect, item) => item === index ? { ...effect, ...value } : effect));
-  return <div className="effects-editor"><header><strong>{video ? "GPU video effect chain" : "Web Audio effect chain"}</strong><button onClick={() => patch([...effects, { id: uid(), type: types[0], value: video ? 100 : 0, enabled: true }])}>Add effect</button></header>{effects.map((effect, index) => <div key={effect.id || index}><input type="checkbox" checked={effect.enabled !== false} onChange={(event) => update(index, { enabled: event.target.checked })} /><select value={effect.type} onChange={(event) => update(index, { type: event.target.value })}>{types.map((type) => <option key={type}>{type}</option>)}</select><input type="number" step=".1" value={effect.value ?? 0} onChange={(event) => update(index, { value: Number(event.target.value) })} />{effect.type === "delay" && <input aria-label="Delay feedback" type="number" min="0" max=".95" step=".05" value={effect.feedback || 0} onChange={(event) => update(index, { feedback: Number(event.target.value) })} />}<button disabled={!index} onClick={() => { const next = [...effects]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; patch(next); }}>Up</button><button disabled={index === effects.length - 1} onClick={() => { const next = [...effects]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; patch(next); }}>Down</button><button onClick={() => patch(effects.filter((_, item) => item !== index))}>Delete</button></div>)}</div>;
+  const types = video
+    ? ["brightness", "contrast", "saturate", "hue-rotate", "blur", "sepia"]
+    : [
+        "gain",
+        "highpass",
+        "lowpass",
+        "peaking",
+        "lowshelf",
+        "highshelf",
+        "compressor",
+        "delay",
+        "distortion",
+      ];
+  const update = (index, value) =>
+    patch(
+      effects.map((effect, item) =>
+        item === index ? { ...effect, ...value } : effect,
+      ),
+    );
+  return (
+    <div className="effects-editor">
+      <header>
+        <strong>
+          {video ? "GPU video effect chain" : "Web Audio effect chain"}
+        </strong>
+        <button
+          onClick={() =>
+            patch([
+              ...effects,
+              {
+                id: uid(),
+                type: types[0],
+                value: video ? 100 : 0,
+                enabled: true,
+              },
+            ])
+          }
+        >
+          Add effect
+        </button>
+      </header>
+      {effects.map((effect, index) => (
+        <div key={effect.id || index}>
+          <input
+            type="checkbox"
+            checked={effect.enabled !== false}
+            onChange={(event) =>
+              update(index, { enabled: event.target.checked })
+            }
+          />
+          <select
+            value={effect.type}
+            onChange={(event) => update(index, { type: event.target.value })}
+          >
+            {types.map((type) => (
+              <option key={type}>{type}</option>
+            ))}
+          </select>
+          <input
+            type="number"
+            step=".1"
+            value={effect.value ?? 0}
+            onChange={(event) =>
+              update(index, { value: Number(event.target.value) })
+            }
+          />
+          {effect.type === "delay" && (
+            <input
+              aria-label="Delay feedback"
+              type="number"
+              min="0"
+              max=".95"
+              step=".05"
+              value={effect.feedback || 0}
+              onChange={(event) =>
+                update(index, { feedback: Number(event.target.value) })
+              }
+            />
+          )}
+          <button
+            disabled={!index}
+            onClick={() => {
+              const next = [...effects];
+              [next[index - 1], next[index]] = [next[index], next[index - 1]];
+              patch(next);
+            }}
+          >
+            Up
+          </button>
+          <button
+            disabled={index === effects.length - 1}
+            onClick={() => {
+              const next = [...effects];
+              [next[index + 1], next[index]] = [next[index], next[index + 1]];
+              patch(next);
+            }}
+          >
+            Down
+          </button>
+          <button
+            onClick={() => patch(effects.filter((_, item) => item !== index))}
+          >
+            Delete
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 function AudioRouting({ cue, patch, outputs, patches }) {
-  const routes = Array.from({ length: cue.sourceChannels || 0 }, (_, index) => cue.audioRoutes?.[index] || [index + 1]);
+  const routes = Array.from(
+    { length: cue.sourceChannels || 0 },
+    (_, index) => cue.audioRoutes?.[index] || [index + 1],
+  );
   const columns = `130px repeat(${outputs},48px)`;
-  const level = (input, output, value) => { const active = value !== "", audioRoutes = routes.map((items, index) => index === input ? active ? [...new Set([...items, output])].sort((a, b) => a - b) : items.filter((item) => item !== output) : items), audioLevels = { ...(cue.audioLevels || {}) }; if (active) audioLevels[`${input + 1}-${output}`] = Number(value); else delete audioLevels[`${input + 1}-${output}`]; patch({ audioRoutes, audioLevels }); };
-  const trim = (input, value) => { const inputTrims = { ...cue.inputTrims }, gang = cue.audioGangs?.[input]; routes.forEach((_, index) => { if (index === input || gang && cue.audioGangs?.[index] === gang) inputTrims[index + 1] = Number(value); }); patch({ inputTrims }); };
-  if (!routes.length) return <div className="audio-routing empty-routing">Choose an audio file to configure channel routing.</div>;
-  return <div className="audio-routing"><label>Audio patch:<PatchSelect value={cue.audioPatch} patches={patches} change={(audioPatch) => patch({ audioPatch })} /></label><p>Crosspoint levels in dB. Blank is silent.</p><div className="channel-controls">{routes.map((_, input) => <div key={input}><input aria-label={`Input ${input + 1} name`} value={cue.inputNames?.[input] || `Input ${input + 1}`} onChange={(event) => { const inputNames = [...(cue.inputNames || [])]; inputNames[input] = event.target.value; patch({ inputNames }); }} /><label>Trim <input type="number" min="-60" max="12" value={cue.inputTrims?.[String(input + 1)] || 0} onChange={(event) => trim(input, event.target.value)} /></label><button className={cue.mutedInputs.includes(input + 1) ? "active" : ""} onClick={() => patch({ mutedInputs: cue.mutedInputs.includes(input + 1) ? cue.mutedInputs.filter((value) => value !== input + 1) : [...cue.mutedInputs, input + 1] })}>Mute</button><button className={cue.soloInputs.includes(input + 1) ? "active" : ""} onClick={() => patch({ soloInputs: cue.soloInputs.includes(input + 1) ? cue.soloInputs.filter((value) => value !== input + 1) : [...cue.soloInputs, input + 1] })}>Solo</button><label>Gang <input type="number" min="0" max="16" value={cue.audioGangs?.[input] || 0} onChange={(event) => { const audioGangs = [...(cue.audioGangs || [])]; audioGangs[input] = Number(event.target.value); patch({ audioGangs }); }} /></label></div>)}</div><div className="route-head" style={{ gridTemplateColumns: columns }}><span>File channel</span>{Array.from({ length: outputs }, (_, index) => <span key={index}>{index + 1}</span>)}</div>{routes.map((items, input) => <div className="route-row" style={{ gridTemplateColumns: columns }} key={input}><strong>{cue.inputNames?.[input] || `Input ${input + 1}`}</strong>{Array.from({ length: outputs }, (_, index) => { const output = index + 1, active = items.includes(output); return <input className={active ? "active" : ""} aria-label={`Route input ${input + 1} to output ${output}`} key={index} type="number" min="-60" max="12" placeholder="-inf" value={active ? cue.audioLevels?.[`${input + 1}-${output}`] ?? 0 : ""} onChange={(event) => level(input, output, event.target.value)} />; })}</div>)}</div>;
+  const level = (input, output, value) => {
+    const active = value !== "",
+      audioRoutes = routes.map((items, index) =>
+        index === input
+          ? active
+            ? [...new Set([...items, output])].sort((a, b) => a - b)
+            : items.filter((item) => item !== output)
+          : items,
+      ),
+      audioLevels = { ...(cue.audioLevels || {}) };
+    if (active) audioLevels[`${input + 1}-${output}`] = Number(value);
+    else delete audioLevels[`${input + 1}-${output}`];
+    patch({ audioRoutes, audioLevels });
+  };
+  const trim = (input, value) => {
+    const inputTrims = { ...cue.inputTrims },
+      gang = cue.audioGangs?.[input];
+    routes.forEach((_, index) => {
+      if (index === input || (gang && cue.audioGangs?.[index] === gang))
+        inputTrims[index + 1] = Number(value);
+    });
+    patch({ inputTrims });
+  };
+  if (!routes.length)
+    return (
+      <div className="audio-routing empty-routing">
+        Choose an audio file to configure channel routing.
+      </div>
+    );
+  return (
+    <div className="audio-routing">
+      <label>
+        Audio patch:
+        <PatchSelect
+          value={cue.audioPatch}
+          patches={patches}
+          change={(audioPatch) => patch({ audioPatch })}
+        />
+      </label>
+      <p>Crosspoint levels in dB. Blank is silent.</p>
+      <div className="channel-controls">
+        {routes.map((_, input) => (
+          <div key={input}>
+            <input
+              aria-label={`Input ${input + 1} name`}
+              value={cue.inputNames?.[input] || `Input ${input + 1}`}
+              onChange={(event) => {
+                const inputNames = [...(cue.inputNames || [])];
+                inputNames[input] = event.target.value;
+                patch({ inputNames });
+              }}
+            />
+            <label>
+              Trim{" "}
+              <input
+                type="number"
+                min="-60"
+                max="12"
+                value={cue.inputTrims?.[String(input + 1)] || 0}
+                onChange={(event) => trim(input, event.target.value)}
+              />
+            </label>
+            <button
+              className={cue.mutedInputs.includes(input + 1) ? "active" : ""}
+              onClick={() =>
+                patch({
+                  mutedInputs: cue.mutedInputs.includes(input + 1)
+                    ? cue.mutedInputs.filter((value) => value !== input + 1)
+                    : [...cue.mutedInputs, input + 1],
+                })
+              }
+            >
+              Mute
+            </button>
+            <button
+              className={cue.soloInputs.includes(input + 1) ? "active" : ""}
+              onClick={() =>
+                patch({
+                  soloInputs: cue.soloInputs.includes(input + 1)
+                    ? cue.soloInputs.filter((value) => value !== input + 1)
+                    : [...cue.soloInputs, input + 1],
+                })
+              }
+            >
+              Solo
+            </button>
+            <label>
+              Gang{" "}
+              <input
+                type="number"
+                min="0"
+                max="16"
+                value={cue.audioGangs?.[input] || 0}
+                onChange={(event) => {
+                  const audioGangs = [...(cue.audioGangs || [])];
+                  audioGangs[input] = Number(event.target.value);
+                  patch({ audioGangs });
+                }}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+      <div className="route-head" style={{ gridTemplateColumns: columns }}>
+        <span>File channel</span>
+        {Array.from({ length: outputs }, (_, index) => (
+          <span key={index}>{index + 1}</span>
+        ))}
+      </div>
+      {routes.map((items, input) => (
+        <div
+          className="route-row"
+          style={{ gridTemplateColumns: columns }}
+          key={input}
+        >
+          <strong>{cue.inputNames?.[input] || `Input ${input + 1}`}</strong>
+          {Array.from({ length: outputs }, (_, index) => {
+            const output = index + 1,
+              active = items.includes(output);
+            return (
+              <input
+                className={active ? "active" : ""}
+                aria-label={`Route input ${input + 1} to output ${output}`}
+                key={index}
+                type="number"
+                min="-60"
+                max="12"
+                placeholder="-inf"
+                value={
+                  active
+                    ? (cue.audioLevels?.[`${input + 1}-${output}`] ?? 0)
+                    : ""
+                }
+                onChange={(event) => level(input, output, event.target.value)}
+              />
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 function AudioTrim({ cue, patch, outputs }) {
-  return <div className="trim-grid"><p>Trims are independent of cue fades.</p><label>Main trim<input type="range" min="-60" max="12" step=".5" value={cue.mainTrim || 0} onChange={(event) => patch({ mainTrim: Number(event.target.value) })} /><strong>{cue.mainTrim || 0} dB</strong></label>{Array.from({ length: outputs }, (_, index) => { const output = String(index + 1); return <label key={output}>Output {output}<input type="range" min="-60" max="12" step="0.5" value={cue.outputTrims?.[output] || 0} onChange={(event) => patch({ outputTrims: { ...(cue.outputTrims || {}), [output]: Number(event.target.value) } })} /><strong>{cue.outputTrims?.[output] || 0} dB</strong></label>; })}<button onClick={() => patch({ mainTrim: 0, outputTrims: {} })}>Reset trims</button></div>;
+  return (
+    <div className="trim-grid">
+      <p>Trims are independent of cue fades.</p>
+      <label>
+        Main trim
+        <input
+          type="range"
+          min="-60"
+          max="12"
+          step=".5"
+          value={cue.mainTrim || 0}
+          onChange={(event) => patch({ mainTrim: Number(event.target.value) })}
+        />
+        <strong>{cue.mainTrim || 0} dB</strong>
+      </label>
+      {Array.from({ length: outputs }, (_, index) => {
+        const output = String(index + 1);
+        return (
+          <label key={output}>
+            Output {output}
+            <input
+              type="range"
+              min="-60"
+              max="12"
+              step="0.5"
+              value={cue.outputTrims?.[output] || 0}
+              onChange={(event) =>
+                patch({
+                  outputTrims: {
+                    ...(cue.outputTrims || {}),
+                    [output]: Number(event.target.value),
+                  },
+                })
+              }
+            />
+            <strong>{cue.outputTrims?.[output] || 0} dB</strong>
+          </label>
+        );
+      })}
+      <button onClick={() => patch({ mainTrim: 0, outputTrims: {} })}>
+        Reset trims
+      </button>
+    </div>
+  );
 }
 function Action({ cue, patch, preview, devices, settings }) {
-  if (cue.type === "Text") return <div className="text-editor-panel"><RichTextEditor cue={cue} patch={patch} /><div className="panel-form"><label>Text color:<input type="color" value={cue.textColor} onChange={(event) => patch({ textColor: event.target.value })} /></label><label>Font size:<input type="number" min="12" max="400" value={cue.fontSize} onChange={(event) => patch({ fontSize: Number(event.target.value) })} /></label><label>Font family:<input value={cue.fontFamily} onChange={(event) => patch({ fontFamily: event.target.value })} /></label><label>Weight:<input type="number" min="100" max="900" step="100" value={cue.fontWeight} onChange={(event) => patch({ fontWeight: Number(event.target.value) })} /></label><label>Alignment:<select value={cue.align} onChange={(event) => patch({ align: event.target.value })}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option><option value="justify">Justify</option></select></label><label>Text width:<input type="number" min="1" max="100" value={cue.textWidth} onChange={(event) => patch({ textWidth: Number(event.target.value) })} /></label><label>Line spacing:<input type="number" min=".5" max="4" step=".1" value={cue.lineHeight} onChange={(event) => patch({ lineHeight: Number(event.target.value) })} /></label><label>Stage:<PatchSelect value={cue.videoStage} patches={settings.videoStages} change={(videoStage) => patch({ videoStage })} /></label><button onClick={preview}>Preview</button></div></div>;
-  if (cue.type === "Timecode") return <div className="panel-form"><label>Output:<select value={cue.timecodeMode} onChange={(event) => patch({ timecodeMode: event.target.value })}><option>Display</option><option>MIDI Timecode</option><option>Linear Timecode</option></select></label><label>Patch:<PatchSelect value={cue.timecodeMode === "Display" ? cue.videoStage : cue.timecodePatch} patches={cue.timecodeMode === "Display" ? settings.videoStages : cue.timecodeMode === "MIDI Timecode" ? settings.midiPatches : settings.audioPatches} change={(value) => patch(cue.timecodeMode === "Display" ? { videoStage: value } : { timecodePatch: value, midiPatch: value, audioPatch: value })} /></label><label>Frame rate:<select value={cue.timecodeFps} onChange={(event) => patch({ timecodeFps: Number(event.target.value) })}>{[23.976,24,25,29.97,30,50,59.94,60].map((fps) => <option key={fps} value={fps}>{fps}</option>)}</select></label><label>Starting frame:<input value={cue.timecodeStart} onChange={(event) => patch({ timecodeStart: event.target.value })} /></label><label>Ending frame:<input value={cue.timecodeEnd} onChange={(event) => { const timecodeEnd = event.target.value, duration = Math.max(0, timecodeSeconds(timecodeEnd, cue.timecodeFps) - timecodeSeconds(cue.timecodeStart, cue.timecodeFps)); patch({ timecodeEnd, duration }); }} /></label>{cue.timecodeMode === "Display" && <><label>Text color:<input type="color" value={cue.textColor} onChange={(event) => patch({ textColor: event.target.value })} /></label><label>Font size:<input type="number" min="12" max="400" value={cue.fontSize} onChange={(event) => patch({ fontSize: Number(event.target.value) })} /></label></>}<button onClick={preview}>Preview</button></div>;
-  if (["Video", "Camera"].includes(cue.type)) return <div className="panel-form">{cue.type === "Camera" && <><label>Source:<select value={cue.cameraSource} onChange={(event) => patch({ cameraSource: event.target.value })}><option>Camera</option><option>Screen or window</option></select></label><p>Input: {cue.cameraSource === "Camera" ? devices.videoinput.find((item) => item.deviceId === settings.videoInput)?.label || "Browser default camera" : "Chosen when the cue starts"}.</p><label><input type="checkbox" checked={cue.cameraAudio} onChange={(event) => patch({ cameraAudio: event.target.checked })} />Route source audio</label></>}<label>Stage:<PatchSelect value={cue.videoStage} patches={settings.videoStages} change={(videoStage) => patch({ videoStage })} /></label><label>Fit:<select value={cue.fit} onChange={(event) => patch({ fit: event.target.value })}><option value="contain">Contain</option><option value="cover">Cover</option><option value="fill">Stretch</option></select></label><button onClick={preview}>Preview</button></div>;
-  if (cue.type === "Network") return <div className="panel-form"><label>Mode:<select value={cue.networkMode} onChange={(event) => patch({ networkMode: event.target.value })}><option>Once</option><option>Resend</option><option>1D Fade</option></select></label><label>Method:<select value={cue.method} onChange={(event) => patch({ method: event.target.value })}><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>GET</option></select></label><label>{cue.networkMode === "1D Fade" ? "Starting numeric payload:" : "Payload:"}<textarea value={cue.payload} onChange={(event) => patch({ payload: event.target.value })} /></label>{cue.networkMode === "1D Fade" && <label>Ending numeric payload:<input type="number" value={cue.networkEnd} onChange={(event) => patch({ networkEnd: event.target.value })} /></label>}{cue.networkMode !== "Once" && <label>Messages per second:<input type="number" min="1" max="120" value={cue.networkFps} onChange={(event) => patch({ networkFps: Number(event.target.value) })} /></label>}<button onClick={preview}>Send</button></div>;
-  if (cue.type === "Mic") return <div className="panel-form"><label>Source:<select value={cue.micSource} onChange={(event) => patch({ micSource: event.target.value })}><option>Microphone</option><option>Screen or tab</option></select></label><label>Audio patch:<PatchSelect value={cue.audioPatch} patches={settings.audioPatches} change={(audioPatch) => patch({ audioPatch })} /></label><p>Input: {cue.micSource === "Microphone" ? devices.audioinput.find((item) => item.deviceId === settings.audioInput)?.label || "Browser default microphone" : "Chosen when the cue starts"}</p><button onClick={preview}>Preview</button></div>;
-  if (cue.type === "MIDI") { const commands = ["Note Off", "Note On", "Poly Pressure", "Control Change", "Program Change", "Channel Pressure", "Pitch Bend", "MTC Quarter Frame", "Song Position", "Song Select", "Tune Request", "Timing Clock", "Start", "Continue", "Stop", "Active Sensing", "Reset", "SysEx", "MSC Go", "MSC Stop", "MSC Resume", "MSC Timed Go", "MSC Set", "MSC Fire", "MSC All Off", "MSC Restore", "MSC Reset", "MSC Go Off"], update = (value) => { const next = { ...cue, ...value }; patch({ ...value, target: midiMessage(next).join(",") }); }, channel = ["Note Off", "Note On", "Poly Pressure", "Control Change", "Program Change", "Channel Pressure", "Pitch Bend"].includes(cue.midiCommand), msc = cue.midiCommand.startsWith("MSC"); return <div className="panel-form"><label>Patch:<PatchSelect value={cue.midiPatch} patches={settings.midiPatches} change={(midiPatch) => patch({ midiPatch })} /></label><label>Command:<select value={cue.midiCommand} onChange={(event) => update({ midiCommand: event.target.value })}>{commands.map((command) => <option key={command}>{command}</option>)}</select></label>{channel && <><label>Channel:<input type="number" min="1" max="16" value={cue.midiChannel} onChange={(event) => update({ midiChannel: Number(event.target.value) })} /></label><label>Byte 1:<input type="number" min="0" max="127" value={cue.midiData1} onChange={(event) => update({ midiData1: Number(event.target.value) })} /></label><label>Byte 2:<input type="number" min="0" max="127" value={cue.midiData2} onChange={(event) => update({ midiData2: Number(event.target.value) })} /></label></>}{msc && <><label>Device ID:<input type="number" min="0" max="127" value={cue.midiDeviceId} onChange={(event) => update({ midiDeviceId: Number(event.target.value) })} /></label><label>Format:<input type="number" min="0" max="127" value={cue.midiFormat} onChange={(event) => update({ midiFormat: Number(event.target.value) })} /></label><label>Cue number:<input value={cue.midiCueNumber} onChange={(event) => update({ midiCueNumber: event.target.value })} /></label></>}{cue.midiCommand === "SysEx" && <label>Raw bytes:<textarea value={cue.target} onChange={(event) => patch({ target: event.target.value })} /></label>}<button onClick={preview}>Send Message</button></div>; }
-  if (cue.type === "MIDI File") return <div className="panel-form"><label>Patch:<PatchSelect value={cue.midiPatch} patches={settings.midiPatches} change={(midiPatch) => patch({ midiPatch })} /></label><p>Tempo and SMPTE-timed Standard MIDI Files are scheduled through Web MIDI.</p><label>Rate:<input type="number" min="3" max="3300" value={cue.rate} onChange={(event) => patch({ rate: Number(event.target.value) })} /> percent</label><button onClick={preview}>Play</button></div>;
-  if (cue.type === "Light") return <LightEditor cue={cue} patch={patch} fixtures={settings.fixtures} patches={settings.lightPatches} preview={preview} />;
+  if (cue.type === "Text")
+    return (
+      <div className="text-editor-panel">
+        <RichTextEditor cue={cue} patch={patch} />
+        <div className="panel-form">
+          <label>
+            Text color:
+            <input
+              type="color"
+              value={cue.textColor}
+              onChange={(event) => patch({ textColor: event.target.value })}
+            />
+          </label>
+          <label>
+            Font size:
+            <input
+              type="number"
+              min="12"
+              max="400"
+              value={cue.fontSize}
+              onChange={(event) =>
+                patch({ fontSize: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Font family:
+            <input
+              value={cue.fontFamily}
+              onChange={(event) => patch({ fontFamily: event.target.value })}
+            />
+          </label>
+          <label>
+            Weight:
+            <input
+              type="number"
+              min="100"
+              max="900"
+              step="100"
+              value={cue.fontWeight}
+              onChange={(event) =>
+                patch({ fontWeight: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Alignment:
+            <select
+              value={cue.align}
+              onChange={(event) => patch({ align: event.target.value })}
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+              <option value="right">Right</option>
+              <option value="justify">Justify</option>
+            </select>
+          </label>
+          <label>
+            Text width:
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={cue.textWidth}
+              onChange={(event) =>
+                patch({ textWidth: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Line spacing:
+            <input
+              type="number"
+              min=".5"
+              max="4"
+              step=".1"
+              value={cue.lineHeight}
+              onChange={(event) =>
+                patch({ lineHeight: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Stage:
+            <PatchSelect
+              value={cue.videoStage}
+              patches={settings.videoStages}
+              change={(videoStage) => patch({ videoStage })}
+            />
+          </label>
+          <button onClick={preview}>Preview</button>
+        </div>
+      </div>
+    );
+  if (cue.type === "Timecode")
+    return (
+      <div className="panel-form">
+        <label>
+          Output:
+          <select
+            value={cue.timecodeMode}
+            onChange={(event) => patch({ timecodeMode: event.target.value })}
+          >
+            <option>Display</option>
+            <option>MIDI Timecode</option>
+            <option>Linear Timecode</option>
+          </select>
+        </label>
+        <label>
+          Patch:
+          <PatchSelect
+            value={
+              cue.timecodeMode === "Display"
+                ? cue.videoStage
+                : cue.timecodePatch
+            }
+            patches={
+              cue.timecodeMode === "Display"
+                ? settings.videoStages
+                : cue.timecodeMode === "MIDI Timecode"
+                  ? settings.midiPatches
+                  : settings.audioPatches
+            }
+            change={(value) =>
+              patch(
+                cue.timecodeMode === "Display"
+                  ? { videoStage: value }
+                  : {
+                      timecodePatch: value,
+                      midiPatch: value,
+                      audioPatch: value,
+                    },
+              )
+            }
+          />
+        </label>
+        <label>
+          Frame rate:
+          <select
+            value={cue.timecodeFps}
+            onChange={(event) =>
+              patch({ timecodeFps: Number(event.target.value) })
+            }
+          >
+            {[23.976, 24, 25, 29.97, 30, 50, 59.94, 60].map((fps) => (
+              <option key={fps} value={fps}>
+                {fps}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Starting frame:
+          <input
+            value={cue.timecodeStart}
+            onChange={(event) => patch({ timecodeStart: event.target.value })}
+          />
+        </label>
+        <label>
+          Ending frame:
+          <input
+            value={cue.timecodeEnd}
+            onChange={(event) => {
+              const timecodeEnd = event.target.value,
+                duration = Math.max(
+                  0,
+                  timecodeSeconds(timecodeEnd, cue.timecodeFps) -
+                    timecodeSeconds(cue.timecodeStart, cue.timecodeFps),
+                );
+              patch({ timecodeEnd, duration });
+            }}
+          />
+        </label>
+        {cue.timecodeMode === "Display" && (
+          <>
+            <label>
+              Text color:
+              <input
+                type="color"
+                value={cue.textColor}
+                onChange={(event) => patch({ textColor: event.target.value })}
+              />
+            </label>
+            <label>
+              Font size:
+              <input
+                type="number"
+                min="12"
+                max="400"
+                value={cue.fontSize}
+                onChange={(event) =>
+                  patch({ fontSize: Number(event.target.value) })
+                }
+              />
+            </label>
+          </>
+        )}
+        <button onClick={preview}>Preview</button>
+      </div>
+    );
+  if (["Video", "Camera"].includes(cue.type))
+    return (
+      <div className="panel-form">
+        {cue.type === "Camera" && (
+          <>
+            <label>
+              Source:
+              <select
+                value={cue.cameraSource}
+                onChange={(event) =>
+                  patch({ cameraSource: event.target.value })
+                }
+              >
+                <option>Camera</option>
+                <option>Screen or window</option>
+              </select>
+            </label>
+            <p>
+              Input:{" "}
+              {cue.cameraSource === "Camera"
+                ? devices.videoinput.find(
+                    (item) => item.deviceId === settings.videoInput,
+                  )?.label || "Browser default camera"
+                : "Chosen when the cue starts"}
+              .
+            </p>
+            <label>
+              <input
+                type="checkbox"
+                checked={cue.cameraAudio}
+                onChange={(event) =>
+                  patch({ cameraAudio: event.target.checked })
+                }
+              />
+              Route source audio
+            </label>
+          </>
+        )}
+        <label>
+          Stage:
+          <PatchSelect
+            value={cue.videoStage}
+            patches={settings.videoStages}
+            change={(videoStage) => patch({ videoStage })}
+          />
+        </label>
+        <label>
+          Fit:
+          <select
+            value={cue.fit}
+            onChange={(event) => patch({ fit: event.target.value })}
+          >
+            <option value="contain">Contain</option>
+            <option value="cover">Cover</option>
+            <option value="fill">Stretch</option>
+          </select>
+        </label>
+        <button onClick={preview}>Preview</button>
+      </div>
+    );
+  if (cue.type === "Network")
+    return (
+      <div className="panel-form">
+        <label>
+          Mode:
+          <select
+            value={cue.networkMode}
+            onChange={(event) => patch({ networkMode: event.target.value })}
+          >
+            <option>Once</option>
+            <option>Resend</option>
+            <option>1D Fade</option>
+          </select>
+        </label>
+        <label>
+          Method:
+          <select
+            value={cue.method}
+            onChange={(event) => patch({ method: event.target.value })}
+          >
+            <option>POST</option>
+            <option>PUT</option>
+            <option>PATCH</option>
+            <option>DELETE</option>
+            <option>GET</option>
+          </select>
+        </label>
+        <label>
+          {cue.networkMode === "1D Fade"
+            ? "Starting numeric payload:"
+            : "Payload:"}
+          <textarea
+            value={cue.payload}
+            onChange={(event) => patch({ payload: event.target.value })}
+          />
+        </label>
+        {cue.networkMode === "1D Fade" && (
+          <label>
+            Ending numeric payload:
+            <input
+              type="number"
+              value={cue.networkEnd}
+              onChange={(event) => patch({ networkEnd: event.target.value })}
+            />
+          </label>
+        )}
+        {cue.networkMode !== "Once" && (
+          <label>
+            Messages per second:
+            <input
+              type="number"
+              min="1"
+              max="120"
+              value={cue.networkFps}
+              onChange={(event) =>
+                patch({ networkFps: Number(event.target.value) })
+              }
+            />
+          </label>
+        )}
+        <button onClick={preview}>Send</button>
+      </div>
+    );
+  if (cue.type === "Mic")
+    return (
+      <div className="panel-form">
+        <label>
+          Source:
+          <select
+            value={cue.micSource}
+            onChange={(event) => patch({ micSource: event.target.value })}
+          >
+            <option>Microphone</option>
+            <option>Screen or tab</option>
+          </select>
+        </label>
+        <label>
+          Audio patch:
+          <PatchSelect
+            value={cue.audioPatch}
+            patches={settings.audioPatches}
+            change={(audioPatch) => patch({ audioPatch })}
+          />
+        </label>
+        <p>
+          Input:{" "}
+          {cue.micSource === "Microphone"
+            ? devices.audioinput.find(
+                (item) => item.deviceId === settings.audioInput,
+              )?.label || "Browser default microphone"
+            : "Chosen when the cue starts"}
+        </p>
+        <button onClick={preview}>Preview</button>
+      </div>
+    );
+  if (cue.type === "MIDI") {
+    const commands = [
+        "Note Off",
+        "Note On",
+        "Poly Pressure",
+        "Control Change",
+        "Program Change",
+        "Channel Pressure",
+        "Pitch Bend",
+        "MTC Quarter Frame",
+        "Song Position",
+        "Song Select",
+        "Tune Request",
+        "Timing Clock",
+        "Start",
+        "Continue",
+        "Stop",
+        "Active Sensing",
+        "Reset",
+        "SysEx",
+        "MSC Go",
+        "MSC Stop",
+        "MSC Resume",
+        "MSC Timed Go",
+        "MSC Set",
+        "MSC Fire",
+        "MSC All Off",
+        "MSC Restore",
+        "MSC Reset",
+        "MSC Go Off",
+      ],
+      update = (value) => {
+        const next = { ...cue, ...value };
+        patch({ ...value, target: midiMessage(next).join(",") });
+      },
+      channel = [
+        "Note Off",
+        "Note On",
+        "Poly Pressure",
+        "Control Change",
+        "Program Change",
+        "Channel Pressure",
+        "Pitch Bend",
+      ].includes(cue.midiCommand),
+      msc = cue.midiCommand.startsWith("MSC");
+    return (
+      <div className="panel-form">
+        <label>
+          Patch:
+          <PatchSelect
+            value={cue.midiPatch}
+            patches={settings.midiPatches}
+            change={(midiPatch) => patch({ midiPatch })}
+          />
+        </label>
+        <label>
+          Command:
+          <select
+            value={cue.midiCommand}
+            onChange={(event) => update({ midiCommand: event.target.value })}
+          >
+            {commands.map((command) => (
+              <option key={command}>{command}</option>
+            ))}
+          </select>
+        </label>
+        {channel && (
+          <>
+            <label>
+              Channel:
+              <input
+                type="number"
+                min="1"
+                max="16"
+                value={cue.midiChannel}
+                onChange={(event) =>
+                  update({ midiChannel: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Byte 1:
+              <input
+                type="number"
+                min="0"
+                max="127"
+                value={cue.midiData1}
+                onChange={(event) =>
+                  update({ midiData1: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Byte 2:
+              <input
+                type="number"
+                min="0"
+                max="127"
+                value={cue.midiData2}
+                onChange={(event) =>
+                  update({ midiData2: Number(event.target.value) })
+                }
+              />
+            </label>
+          </>
+        )}
+        {msc && (
+          <>
+            <label>
+              Device ID:
+              <input
+                type="number"
+                min="0"
+                max="127"
+                value={cue.midiDeviceId}
+                onChange={(event) =>
+                  update({ midiDeviceId: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Format:
+              <input
+                type="number"
+                min="0"
+                max="127"
+                value={cue.midiFormat}
+                onChange={(event) =>
+                  update({ midiFormat: Number(event.target.value) })
+                }
+              />
+            </label>
+            <label>
+              Cue number:
+              <input
+                value={cue.midiCueNumber}
+                onChange={(event) =>
+                  update({ midiCueNumber: event.target.value })
+                }
+              />
+            </label>
+          </>
+        )}
+        {cue.midiCommand === "SysEx" && (
+          <label>
+            Raw bytes:
+            <textarea
+              value={cue.target}
+              onChange={(event) => patch({ target: event.target.value })}
+            />
+          </label>
+        )}
+        <button onClick={preview}>Send Message</button>
+      </div>
+    );
+  }
+  if (cue.type === "MIDI File")
+    return (
+      <div className="panel-form">
+        <label>
+          Patch:
+          <PatchSelect
+            value={cue.midiPatch}
+            patches={settings.midiPatches}
+            change={(midiPatch) => patch({ midiPatch })}
+          />
+        </label>
+        <p>
+          Tempo and SMPTE-timed Standard MIDI Files are scheduled through Web
+          MIDI.
+        </p>
+        <label>
+          Rate:
+          <input
+            type="number"
+            min="3"
+            max="3300"
+            value={cue.rate}
+            onChange={(event) => patch({ rate: Number(event.target.value) })}
+          />{" "}
+          percent
+        </label>
+        <button onClick={preview}>Play</button>
+      </div>
+    );
+  if (cue.type === "Light")
+    return (
+      <LightEditor
+        cue={cue}
+        patch={patch}
+        fixtures={settings.fixtures}
+        patches={settings.lightPatches}
+        preview={preview}
+      />
+    );
   return null;
 }
-function PatchSelect({ value, patches, change }) { return <select value={value} onChange={(event) => change(event.target.value)}>{patches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>; }
-function RichTextEditor({ cue, patch }) { const editor = useRef(null); useEffect(() => { if (editor.current && editor.current.innerHTML !== (cue.textHtml || cue.target)) editor.current.innerHTML = sanitizeRichText(cue.textHtml || cue.target); }, [cue.id]); const command = (name, value) => { document.execCommand(name, false, value); patch({ textHtml: sanitizeRichText(editor.current.innerHTML) }); }; return <div className="rich-text"><div><button onClick={() => command("bold")}>Bold</button><button onClick={() => command("italic")}>Italic</button><button onClick={() => command("underline")}>Underline</button><button onClick={() => command("insertUnorderedList")}>List</button><input type="color" value={cue.textColor} onChange={(event) => command("foreColor", event.target.value)} /></div><div ref={editor} contentEditable suppressContentEditableWarning onInput={(event) => patch({ textHtml: sanitizeRichText(event.currentTarget.innerHTML) })} /></div>; }
-function LightEditor({ cue, patch, fixtures, patches, preview }) { const set = (id, parameter, value) => patch({ lightLevels: { ...cue.lightLevels, [id]: { ...(cue.lightLevels[id] || {}), [parameter]: Number(value) } } }); return <div className="light-editor"><label>Patch:<PatchSelect value={cue.lightPatch} patches={patches} change={(lightPatch) => patch({ lightPatch })} /></label><label>Fade curve:<CurveSelect value={cue.lightCurve} change={(lightCurve) => patch({ lightCurve })} /></label>{fixtures.map((fixture) => <section key={fixture.id}><strong>{fixture.name}</strong>{Object.keys(fixture.channels).map((parameter) => <label key={parameter}>{parameter}<input type="range" min="0" max="100" value={cue.lightLevels?.[fixture.id]?.[parameter] || 0} onChange={(event) => set(fixture.id, parameter, event.target.value)} /><span>{cue.lightLevels?.[fixture.id]?.[parameter] || 0}</span></label>)}</section>)}{!fixtures.length && <p>Add fixtures in Workspace Settings or Light Patch.</p>}<button onClick={preview}>Send</button></div>; }
+function PatchSelect({ value, patches, change }) {
+  return (
+    <select value={value} onChange={(event) => change(event.target.value)}>
+      {patches.map((item) => (
+        <option key={item.id} value={item.id}>
+          {item.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+function RichTextEditor({ cue, patch }) {
+  const editor = useRef(null);
+  useEffect(() => {
+    if (
+      editor.current &&
+      editor.current.innerHTML !== (cue.textHtml || cue.target)
+    )
+      editor.current.innerHTML = sanitizeRichText(cue.textHtml || cue.target);
+  }, [cue.id]);
+  const command = (name, value) => {
+    document.execCommand(name, false, value);
+    patch({ textHtml: sanitizeRichText(editor.current.innerHTML) });
+  };
+  return (
+    <div className="rich-text">
+      <div>
+        <button onClick={() => command("bold")}>Bold</button>
+        <button onClick={() => command("italic")}>Italic</button>
+        <button onClick={() => command("underline")}>Underline</button>
+        <button onClick={() => command("insertUnorderedList")}>List</button>
+        <input
+          type="color"
+          value={cue.textColor}
+          onChange={(event) => command("foreColor", event.target.value)}
+        />
+      </div>
+      <div
+        ref={editor}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={(event) =>
+          patch({ textHtml: sanitizeRichText(event.currentTarget.innerHTML) })
+        }
+      />
+    </div>
+  );
+}
+function LightEditor({ cue, patch, fixtures, patches, preview }) {
+  const set = (id, parameter, value) =>
+    patch({
+      lightLevels: {
+        ...cue.lightLevels,
+        [id]: { ...(cue.lightLevels[id] || {}), [parameter]: Number(value) },
+      },
+    });
+  return (
+    <div className="light-editor">
+      <label>
+        Patch:
+        <PatchSelect
+          value={cue.lightPatch}
+          patches={patches}
+          change={(lightPatch) => patch({ lightPatch })}
+        />
+      </label>
+      <label>
+        Fade curve:
+        <CurveSelect
+          value={cue.lightCurve}
+          change={(lightCurve) => patch({ lightCurve })}
+        />
+      </label>
+      {fixtures.map((fixture) => (
+        <section key={fixture.id}>
+          <strong>{fixture.name}</strong>
+          {Object.keys(fixture.channels).map((parameter) => (
+            <label key={parameter}>
+              {parameter}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={cue.lightLevels?.[fixture.id]?.[parameter] || 0}
+                onChange={(event) =>
+                  set(fixture.id, parameter, event.target.value)
+                }
+              />
+              <span>{cue.lightLevels?.[fixture.id]?.[parameter] || 0}</span>
+            </label>
+          ))}
+        </section>
+      ))}
+      {!fixtures.length && (
+        <p>Add fixtures in Workspace Settings or Light Patch.</p>
+      )}
+      <button onClick={preview}>Send</button>
+    </div>
+  );
+}
 function VisualControls({ cue, patch, text }) {
-  return <><label>Opacity:<input type="range" min="0" max="100" value={cue.opacity} onChange={(event) => patch({ opacity: Number(event.target.value) })} /></label><label>Background:<input type="color" value={cue.backgroundColor} onChange={(event) => patch({ backgroundColor: event.target.value })} /></label>{[["x","X position"],["y","Y position"],["rotation","Rotation"],["rotateX","X rotation"],["rotateY","Y rotation"],["perspective","Perspective"],["anchorX","Anchor X"],["anchorY","Anchor Y"],["cropTop","Crop top"],["cropRight","Crop right"],["cropBottom","Crop bottom"],["cropLeft","Crop left"],["maskRadius","Mask radius"]].map(([key,label]) => <label key={key}>{label}:<input type="number" value={cue[key]} onChange={(event) => patch({ [key]: Number(event.target.value) })} /></label>)}<label>Scale:<input type="number" min="1" max="1000" value={cue.scale} onChange={(event) => patch({ scale: Number(event.target.value) })} /> percent</label><label>Layer:<input type="number" value={cue.zIndex} onChange={(event) => patch({ zIndex: Number(event.target.value) })} /></label><label>Blend:<select value={cue.blendMode} onChange={(event) => patch({ blendMode: event.target.value })}><option value="normal">Normal</option><option value="screen">Screen</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="lighten">Lighten</option><option value="darken">Darken</option></select></label>{text && <p>Rich text is edited on the Action tab.</p>}</>;
+  return (
+    <>
+      <label>
+        Opacity:
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={cue.opacity}
+          onChange={(event) => patch({ opacity: Number(event.target.value) })}
+        />
+      </label>
+      <label>
+        Background:
+        <input
+          type="color"
+          value={cue.backgroundColor}
+          onChange={(event) => patch({ backgroundColor: event.target.value })}
+        />
+      </label>
+      {[
+        ["x", "X position"],
+        ["y", "Y position"],
+        ["rotation", "Rotation"],
+        ["rotateX", "X rotation"],
+        ["rotateY", "Y rotation"],
+        ["perspective", "Perspective"],
+        ["anchorX", "Anchor X"],
+        ["anchorY", "Anchor Y"],
+        ["cropTop", "Crop top"],
+        ["cropRight", "Crop right"],
+        ["cropBottom", "Crop bottom"],
+        ["cropLeft", "Crop left"],
+        ["maskRadius", "Mask radius"],
+      ].map(([key, label]) => (
+        <label key={key}>
+          {label}:
+          <input
+            type="number"
+            value={cue[key]}
+            onChange={(event) => patch({ [key]: Number(event.target.value) })}
+          />
+        </label>
+      ))}
+      <label>
+        Scale:
+        <input
+          type="number"
+          min="1"
+          max="1000"
+          value={cue.scale}
+          onChange={(event) => patch({ scale: Number(event.target.value) })}
+        />{" "}
+        percent
+      </label>
+      <label>
+        Layer:
+        <input
+          type="number"
+          value={cue.zIndex}
+          onChange={(event) => patch({ zIndex: Number(event.target.value) })}
+        />
+      </label>
+      <label>
+        Blend:
+        <select
+          value={cue.blendMode}
+          onChange={(event) => patch({ blendMode: event.target.value })}
+        >
+          <option value="normal">Normal</option>
+          <option value="screen">Screen</option>
+          <option value="multiply">Multiply</option>
+          <option value="overlay">Overlay</option>
+          <option value="lighten">Lighten</option>
+          <option value="darken">Darken</option>
+        </select>
+      </label>
+      {text && <p>Rich text is edited on the Action tab.</p>}
+    </>
+  );
 }
 
-function ContextMenu({ readOnly, context, cue, count, patch, duplicate, remove, run, addCue, newList, renameList, duplicateList, deleteList, canDeleteList, selectList, openWindow, close }) {
-  const act = (fn) => { fn(); close(); };
-  return <div className="context-menu" style={{ left: Math.min(context.x, innerWidth - 250), top: Math.max(8, Math.min(context.y, innerHeight - 420)) }} onClick={(event) => event.stopPropagation()}><div className="context-title">{context.type === "cue" ? count > 1 ? `${count} cues selected` : `${cue?.number} - ${cue?.name}` : context.type === "cart" ? `Cue Cart Slot ${context.slot + 1}` : context.item.name}</div>{context.type === "cue" ? <><button onClick={() => act(run)}><Play size={14} />Preview</button>{!readOnly && <><button onClick={() => act(() => patch({ armed: !cue.armed }))}><Power size={14} />{cue.armed ? "Disarm" : "Arm"}</button><button onClick={() => act(() => patch({ flagged: !cue.flagged }))}><Flag size={14} />{cue.flagged ? "Unflag" : "Flag"}</button><hr /><button onClick={() => act(duplicate)}><Copy size={14} />Duplicate</button><button onClick={() => act(remove)}><Trash2 size={14} />Delete</button><hr /><div className="color-row">{colors.slice(1).map((color) => <button title={color} key={color} className={`swatch color-${color}`} onClick={() => act(() => patch({ color }))} />)}</div></>}</> : context.type === "cart" ? cueTypes.filter(([type]) => type !== "Group").map(([type, Icon]) => <button key={type} onClick={() => act(() => addCue(type, context.slot))}><Icon size={14} />New {type} Cue</button>) : <><button onClick={() => act(() => selectList(context.item))}><FolderOpen size={14} />Open</button><button onClick={() => act(openWindow)}><Maximize size={14} />Open in new window</button>{!readOnly && <><button onClick={() => act(() => renameList(context.item))}><Type size={14} />Rename</button><button onClick={() => act(() => newList("list"))}><List size={14} />New List</button><button onClick={() => act(() => newList("cart"))}><Box size={14} />New Cart</button><hr /><button onClick={() => act(() => duplicateList(context.item))}><Copy size={14} />Duplicate</button><button disabled={!canDeleteList} onClick={() => act(() => deleteList(context.item))}><Trash2 size={14} />Delete</button></>}</>}</div>;
+function ContextMenu({
+  readOnly,
+  context,
+  cue,
+  count,
+  patch,
+  duplicate,
+  remove,
+  run,
+  addCue,
+  newList,
+  renameList,
+  duplicateList,
+  deleteList,
+  canDeleteList,
+  selectList,
+  openWindow,
+  close,
+}) {
+  const act = (fn) => {
+    fn();
+    close();
+  };
+  return (
+    <div
+      className="context-menu"
+      style={{
+        left: Math.min(context.x, innerWidth - 250),
+        top: Math.max(8, Math.min(context.y, innerHeight - 420)),
+      }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="context-title">
+        {context.type === "cue"
+          ? count > 1
+            ? `${count} cues selected`
+            : `${cue?.number} - ${cue?.name}`
+          : context.type === "cart"
+            ? `Cue Cart Slot ${context.slot + 1}`
+            : context.item.name}
+      </div>
+      {context.type === "cue" ? (
+        <>
+          <button onClick={() => act(run)}>
+            <Play size={14} />
+            Preview
+          </button>
+          {!readOnly && (
+            <>
+              <button onClick={() => act(() => patch({ armed: !cue.armed }))}>
+                <Power size={14} />
+                {cue.armed ? "Disarm" : "Arm"}
+              </button>
+              <button
+                onClick={() => act(() => patch({ flagged: !cue.flagged }))}
+              >
+                <Flag size={14} />
+                {cue.flagged ? "Unflag" : "Flag"}
+              </button>
+              <hr />
+              <button onClick={() => act(duplicate)}>
+                <Copy size={14} />
+                Duplicate
+              </button>
+              <button onClick={() => act(remove)}>
+                <Trash2 size={14} />
+                Delete
+              </button>
+              <hr />
+              <div className="color-row">
+                {colors.slice(1).map((color) => (
+                  <button
+                    title={color}
+                    key={color}
+                    className={`swatch color-${color}`}
+                    onClick={() => act(() => patch({ color }))}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      ) : context.type === "cart" ? (
+        cueTypes
+          .filter(([type]) => type !== "Group")
+          .map(([type, Icon]) => (
+            <button
+              key={type}
+              onClick={() => act(() => addCue(type, context.slot))}
+            >
+              <Icon size={14} />
+              New {type} Cue
+            </button>
+          ))
+      ) : (
+        <>
+          <button onClick={() => act(() => selectList(context.item))}>
+            <FolderOpen size={14} />
+            Open
+          </button>
+          <button onClick={() => act(openWindow)}>
+            <Maximize size={14} />
+            Open in new window
+          </button>
+          {!readOnly && (
+            <>
+              <button onClick={() => act(() => renameList(context.item))}>
+                <Type size={14} />
+                Rename
+              </button>
+              <button onClick={() => act(() => newList("list"))}>
+                <List size={14} />
+                New List
+              </button>
+              <button onClick={() => act(() => newList("cart"))}>
+                <Box size={14} />
+                New Cart
+              </button>
+              <hr />
+              <button onClick={() => act(() => duplicateList(context.item))}>
+                <Copy size={14} />
+                Duplicate
+              </button>
+              <button
+                disabled={!canDeleteList}
+                onClick={() => act(() => deleteList(context.item))}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
-function WorkspaceStatus({ tab, setTab, warnings, workspaceWarning, logs, clearLogs, workspace, inspect, close }) {
-  const tabs = ["Warnings", "Logs", "Triggers", "Assets"], assets = workspace.lists.flatMap((list) => list.cues.filter((cue) => cue.fileName).map((cue) => ({ cue, list }))), triggers = workspace.lists.flatMap((list) => list.cues.filter((cue) => cue.hotkey || cue.wallClock || cue.midiTrigger || cue.timecodeTrigger));
+function WorkspaceStatus({
+  tab,
+  setTab,
+  warnings,
+  workspaceWarning,
+  logs,
+  clearLogs,
+  workspace,
+  inspect,
+  close,
+}) {
+  const tabs = ["Warnings", "Logs", "Triggers", "Assets"],
+    assets = workspace.lists.flatMap((list) =>
+      list.cues.filter((cue) => cue.fileName).map((cue) => ({ cue, list })),
+    ),
+    triggers = workspace.lists.flatMap((list) =>
+      list.cues.filter(
+        (cue) =>
+          cue.hotkey || cue.wallClock || cue.midiTrigger || cue.timecodeTrigger,
+      ),
+    );
   const dialog = useDialog(close, "Workspace Status");
-  return <div className="modal-shade"><div className="status-panel" {...dialog}><header><Activity size={18} /><strong>Workspace Status</strong><button aria-label="Close Workspace Status" onClick={close}><X size={18} /></button></header><nav>{tabs.map((item) => <button className={tab === item ? "active" : ""} key={item} onClick={() => setTab(item)}>{item}</button>)}</nav><section>{tab === "Warnings" && <>{workspaceWarning && <div className="status-row"><AlertTriangle size={16} /><span><strong>Workspace</strong><small>{workspaceWarning}</small></span></div>}{warnings.map((warning) => <button className="status-row" key={`${warning.cue.id}-${warning.message}`} onClick={() => inspect(warning)}><AlertTriangle size={16} /><span><strong>{warning.cue.number} - {warning.cue.name}</strong><small>{warning.message}</small></span><span>Inspect Cue</span></button>)}{!workspaceWarning && !warnings.length && <div className="status-empty">No warnings</div>}</>}{tab === "Logs" && <>{logs.length ? logs.map((item) => <div className={`status-row log-${item.kind}`} key={item.id}><span>{item.at}</span><strong>{item.kind}</strong><span>{item.message}</span></div>) : <div className="status-empty">No cue or device events logged</div>}<button className="status-action" onClick={clearLogs}>Clear Logs</button></>}{tab === "Triggers" && (triggers.length ? triggers.map((cue) => <div className="status-row" key={cue.id}><strong>{cue.number} - {cue.name}</strong><span>{[cue.hotkey && `Key ${cue.hotkey}`, cue.wallClock && `Clock ${cue.wallClock}`, cue.midiTrigger && `MIDI ${cue.midiTrigger}`, cue.timecodeTrigger && `Timecode ${cue.timecodeTrigger}`].filter(Boolean).join("; ")}</span></div>) : <div className="status-empty">No cue triggers configured</div>)}{tab === "Assets" && (assets.length ? assets.map(({ cue, list }) => <button className="status-row" key={cue.id} onClick={() => inspect({ cue, list })}><FileAudio size={16} /><strong>{cue.fileName}</strong><span>{cue.number} - {cue.name}</span></button>) : <div className="status-empty">No workspace media files</div>)}</section><footer><button onClick={close}>Done</button></footer></div></div>;
+  return (
+    <div className="modal-shade">
+      <div className="status-panel" {...dialog}>
+        <header>
+          <Activity size={18} />
+          <strong>Workspace Status</strong>
+          <button aria-label="Close Workspace Status" onClick={close}>
+            <X size={18} />
+          </button>
+        </header>
+        <nav>
+          {tabs.map((item) => (
+            <button
+              className={tab === item ? "active" : ""}
+              key={item}
+              onClick={() => setTab(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+        <section>
+          {tab === "Warnings" && (
+            <>
+              {workspaceWarning && (
+                <div className="status-row">
+                  <AlertTriangle size={16} />
+                  <span>
+                    <strong>Workspace</strong>
+                    <small>{workspaceWarning}</small>
+                  </span>
+                </div>
+              )}
+              {warnings.map((warning) => (
+                <button
+                  className="status-row"
+                  key={`${warning.cue.id}-${warning.message}`}
+                  onClick={() => inspect(warning)}
+                >
+                  <AlertTriangle size={16} />
+                  <span>
+                    <strong>
+                      {warning.cue.number} - {warning.cue.name}
+                    </strong>
+                    <small>{warning.message}</small>
+                  </span>
+                  <span>Inspect Cue</span>
+                </button>
+              ))}
+              {!workspaceWarning && !warnings.length && (
+                <div className="status-empty">No warnings</div>
+              )}
+            </>
+          )}
+          {tab === "Logs" && (
+            <>
+              {logs.length ? (
+                logs.map((item) => (
+                  <div className={`status-row log-${item.kind}`} key={item.id}>
+                    <span>{item.at}</span>
+                    <strong>{item.kind}</strong>
+                    <span>{item.message}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="status-empty">
+                  No cue or device events logged
+                </div>
+              )}
+              <button className="status-action" onClick={clearLogs}>
+                Clear Logs
+              </button>
+            </>
+          )}
+          {tab === "Triggers" &&
+            (triggers.length ? (
+              triggers.map((cue) => (
+                <div className="status-row" key={cue.id}>
+                  <strong>
+                    {cue.number} - {cue.name}
+                  </strong>
+                  <span>
+                    {[
+                      cue.hotkey && `Key ${cue.hotkey}`,
+                      cue.wallClock && `Clock ${cue.wallClock}`,
+                      cue.midiTrigger && `MIDI ${cue.midiTrigger}`,
+                      cue.timecodeTrigger && `Timecode ${cue.timecodeTrigger}`,
+                    ]
+                      .filter(Boolean)
+                      .join("; ")}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="status-empty">No cue triggers configured</div>
+            ))}
+          {tab === "Assets" &&
+            (assets.length ? (
+              assets.map(({ cue, list }) => (
+                <button
+                  className="status-row"
+                  key={cue.id}
+                  onClick={() => inspect({ cue, list })}
+                >
+                  <FileAudio size={16} />
+                  <strong>{cue.fileName}</strong>
+                  <span>
+                    {cue.number} - {cue.name}
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="status-empty">No workspace media files</div>
+            ))}
+        </section>
+        <footer>
+          <button onClick={close}>Done</button>
+        </footer>
+      </div>
+    </div>
+  );
 }
-function RecorderPanel({ count, stop, cancel }) { const dialog = useDialog(cancel, "Record cue sequence"); return <div className="modal-shade"><div className="recorder-panel" {...dialog}><div><span className="record-dot" /><strong>Recording cue sequence</strong></div><p>Start cues normally. Their timing will be captured into a new Timeline Group.</p><span>{count} cue events recorded</span><footer><button onClick={cancel}>Cancel</button><button onClick={stop} disabled={!count}>Stop and Create Group</button></footer></div></div>; }
+function RecorderPanel({ count, stop, cancel }) {
+  const dialog = useDialog(cancel, "Record cue sequence");
+  return (
+    <div className="modal-shade">
+      <div className="recorder-panel" {...dialog}>
+        <div>
+          <span className="record-dot" />
+          <strong>Recording cue sequence</strong>
+        </div>
+        <p>
+          Start cues normally. Their timing will be captured into a new Timeline
+          Group.
+        </p>
+        <span>{count} cue events recorded</span>
+        <footer>
+          <button onClick={cancel}>Cancel</button>
+          <button onClick={stop} disabled={!count}>
+            Stop and Create Group
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
 
-function SettingsPanel({ page, setPage, close, settings, patch, connections, devices, connect, requestScreens, openStage, writeSerial: testSerial, midiRef, workspace, setWorkspace, fail }) {
-  const pages = ["General", "Controls", "Audition", "Collaboration", "Templates", "Audio", "Video", "Light", "Network", "MIDI"];
+function SettingsPanel({
+  page,
+  setPage,
+  close,
+  settings,
+  patch,
+  connections,
+  devices,
+  connect,
+  requestScreens,
+  openStage,
+  writeSerial: testSerial,
+  midiRef,
+  workspace,
+  setWorkspace,
+  fail,
+}) {
+  const pages = [
+    "General",
+    "Controls",
+    "Audition",
+    "Collaboration",
+    "Templates",
+    "Audio",
+    "Video",
+    "Light",
+    "Network",
+    "MIDI",
+  ];
   const [templateType, setTemplateType] = useState("Audio");
   const settingsFile = useRef(null);
   const dialog = useDialog(close, "Workspace Settings");
-  const updateTemplate = (value) => setWorkspace((state) => ({ ...state, templates: { ...state.templates, [templateType]: { ...state.templates[templateType], ...value } } }));
-  const testMidi = () => { const output = settings.midiOutput ? midiRef.current?.outputs.get(settings.midiOutput) : [...(midiRef.current?.outputs.values() || [])][0]; output?.send([144, 60, 100]); setTimeout(() => output?.send([128, 60, 0]), 250); };
-  const exportSettings = () => { const anchor = document.createElement("a"); anchor.href = URL.createObjectURL(new Blob([JSON.stringify({ settings: workspace.settings, templates: workspace.templates }, null, 2)], { type: "application/json" })); anchor.download = "StageCue-settings.json"; anchor.click(); URL.revokeObjectURL(anchor.href); };
-  const importSettings = async (event) => { const file = event.target.files?.[0]; if (!file) return; try { const value = JSON.parse(await file.text()); if (!value.settings || !value.templates) throw new Error("This is not a StageCue settings file."); setWorkspace((state) => ({ ...state, settings: { ...initial.settings, ...value.settings }, templates: { ...defaults, ...value.templates } })); } catch (error) { fail(error); } event.target.value = ""; };
-  return <div className="modal-shade"><div className="settings-panel" {...dialog}><input ref={settingsFile} hidden type="file" accept="application/json" onChange={importSettings} /><aside>{pages.map((item) => <button className={page === item ? "active" : ""} key={item} onClick={() => setPage(item)}>{item}</button>)}</aside><div className="settings-main"><div className="settings-tabs"><span className="active">{page}</span></div><div className="settings-content">
-    {page === "General" && <><Setting label="Minimum time between each GO"><input type="number" min="0" step="0.1" value={settings.minGoInterval} onChange={(event) => patch({ minGoInterval: Number(event.target.value) })} /> seconds</Setting><Setting label="Require key up before re-arming GO"><input type="checkbox" checked={settings.requireKeyUp} onChange={(event) => patch({ requireKeyUp: event.target.checked })} /></Setting><Setting label="Panic duration"><input type="number" min="0" step="0.1" value={settings.panicDuration} onChange={(event) => patch({ panicDuration: Number(event.target.value) })} /> seconds</Setting><Setting label="Cue list row size"><select value={settings.cueSize} onChange={(event) => patch({ cueSize: event.target.value })}><option>Small</option><option>Medium</option><option>Large</option></select></Setting><Setting label="Cue cart button size"><select value={settings.cartSize} onChange={(event) => patch({ cartSize: event.target.value })}><option>Small</option><option>Medium</option><option>Large</option></select></Setting><Setting label="Newest active cues"><select value={settings.activeNewest} onChange={(event) => patch({ activeNewest: event.target.value })}><option>Bottom</option><option>Top</option></select></Setting><Setting label="Auto-number new cues"><input type="checkbox" checked={settings.autoNumber} onChange={(event) => patch({ autoNumber: event.target.checked })} /></Setting><Setting label="Number increment"><input type="number" min="1" value={settings.increment} onChange={(event) => patch({ increment: Number(event.target.value) })} /></Setting></>}
-    {page === "Controls" && <><Setting label="GO"><input value={settings.goKey} onChange={(event) => patch({ goKey: event.target.value })} /></Setting><Setting label="Panic all"><input value={settings.panicKey} onChange={(event) => patch({ panicKey: event.target.value })} /></Setting><Setting label="Pause all"><input value={settings.pauseKey} onChange={(event) => patch({ pauseKey: event.target.value })} /></Setting><Setting label="Resume all"><input value={settings.resumeKey} onChange={(event) => patch({ resumeKey: event.target.value })} /></Setting><Setting label="Preview selected"><input value={settings.previewKey} onChange={(event) => patch({ previewKey: event.target.value })} /></Setting><Setting label="Stop selected"><input value={settings.stopSelectedKey} onChange={(event) => patch({ stopSelectedKey: event.target.value })} /></Setting><Setting label="Pause/resume selected"><input value={settings.pauseSelectedKey} onChange={(event) => patch({ pauseSelectedKey: event.target.value })} /></Setting></>}
-    {page === "Audition" && <><Setting label="Audition mode"><input type="checkbox" checked={settings.audition} onChange={(event) => patch({ audition: event.target.checked })} /></Setting><p>Choose which outputs remain active while auditioning.</p>{[["Audio", "auditionAudio"], ["Video and text", "auditionVideo"], ["MIDI", "auditionMidi"], ["MIDI timecode", "auditionTimecode"], ["Linear timecode", "auditionLtc"], ["Network", "auditionNetwork"], ["Light", "auditionLight"]].map(([label, key]) => <Setting label={label} key={key}><input type="checkbox" checked={settings[key]} onChange={(event) => patch({ [key]: event.target.checked })} /></Setting>)}</>}
-    {page === "Collaboration" && <><Setting label="Synchronize same-origin tabs"><input type="checkbox" checked={settings.collaboration} onChange={(event) => patch({ collaboration: event.target.checked })} /></Setting><Setting label="Remote collaboration"><input type="checkbox" checked={settings.collaborationRemote} onChange={(event) => patch({ collaborationRemote: event.target.checked })} /></Setting><Setting label="Room"><input value={settings.collaborationRoom} onChange={(event) => patch({ collaborationRoom: event.target.value })} /></Setting><Setting label="WebSocket server"><input value={settings.collaborationUrl} placeholder="Built-in server" onChange={(event) => patch({ collaborationUrl: event.target.value })} /></Setting><p>The built-in WebSocket endpoint synchronizes a named room. A custom compatible endpoint can be supplied.</p></>}
-    {page === "Templates" && <TemplateManager templateType={templateType} setTemplateType={setTemplateType} workspace={workspace} updateTemplate={updateTemplate} setWorkspace={setWorkspace} />}
-    {page === "Audio" && <div className="device-settings"><Device name="Microphone permission" status={connections.microphone} label="Request permission..." action={() => connect("microphone")} /><Setting label="Audio input"><select value={settings.audioInput} onChange={(event) => patch({ audioInput: event.target.value })}><option value="">Browser default</option>{devices.audioinput.map((item) => <option key={item.deviceId} value={item.deviceId}>{item.label || item.deviceId}</option>)}</select></Setting><PatchManager title="Audio output patches" items={settings.audioPatches} devices={devices.audiooutput} patch={(audioPatches) => patch({ audioPatches })} channels /></div>}
-    {page === "Video" && <div className="device-settings"><Device name="Camera permission" status={connections.camera} label="Request permission..." action={() => connect("camera")} /><Setting label="Video input"><select value={settings.videoInput} onChange={(event) => patch({ videoInput: event.target.value })}><option value="">Browser default</option>{devices.videoinput.map((item) => <option key={item.deviceId} value={item.deviceId}>{item.label || item.deviceId}</option>)}</select></Setting><button onClick={requestScreens}>Request display access</button><StageManager stages={settings.videoStages} screens={devices.screens} patch={(videoStages) => patch({ videoStages })} open={openStage} /></div>}
-    {page === "Light" && <div className="device-settings"><Device name="Serial / DMX bridge" status={connections.serial} label={connections.serial === "Connected" ? "Disconnect" : "Connect..."} action={() => connect("serial")} /><PatchManager title="Lighting patches" items={settings.lightPatches} patch={(lightPatches) => patch({ lightPatches })} baud /><FixtureManager fixtures={settings.fixtures} patch={(fixtures) => patch({ fixtures })} /><button disabled={connections.serial !== "Connected"} onClick={() => testSerial("TEST")}>Send test</button></div>}
-    {page === "Network" && <><Setting label="Default URL for new cues"><input value={settings.networkDefaultUrl} placeholder="https:// or wss://" onChange={(event) => patch({ networkDefaultUrl: event.target.value })} /></Setting><Setting label="Default method"><select value={settings.networkDefaultMethod} onChange={(event) => patch({ networkDefaultMethod: event.target.value })}><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>GET</option></select></Setting><p>Network cues support HTTP, HTTPS, WebSocket, and secure WebSocket destinations. Chromium does not expose raw UDP or TCP sockets.</p></>}
-    {page === "MIDI" && <div className="device-settings"><Device name="Web MIDI" status={connections.midi} label={connections.midi === "Not connected" ? "Connect..." : "Disconnect"} action={() => connect("midi")} /><PatchManager title="MIDI output patches" items={settings.midiPatches} devices={devices.midioutput} patch={(midiPatches) => patch({ midiPatches })} /><button onClick={testMidi} disabled={!devices.midioutput.length}>Test note</button></div>}
-  </div></div><div className="settings-footer"><button onClick={() => settingsFile.current?.click()}>Import Settings</button><button onClick={exportSettings}>Export Settings</button><button onClick={close}>Done</button></div></div></div>;
+  const updateTemplate = (value) =>
+    setWorkspace((state) => ({
+      ...state,
+      templates: {
+        ...state.templates,
+        [templateType]: { ...state.templates[templateType], ...value },
+      },
+    }));
+  const testMidi = () => {
+    const output = settings.midiOutput
+      ? midiRef.current?.outputs.get(settings.midiOutput)
+      : [...(midiRef.current?.outputs.values() || [])][0];
+    output?.send([144, 60, 100]);
+    setTimeout(() => output?.send([128, 60, 0]), 250);
+  };
+  const exportSettings = () => {
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(
+      new Blob(
+        [
+          JSON.stringify(
+            { settings: workspace.settings, templates: workspace.templates },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+    );
+    anchor.download = "WebCue-settings.json";
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  };
+  const importSettings = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const value = JSON.parse(await file.text());
+      if (!value.settings || !value.templates)
+        throw new Error("This is not a WebCue settings file.");
+      setWorkspace((state) => ({
+        ...state,
+        settings: { ...initial.settings, ...value.settings },
+        templates: { ...defaults, ...value.templates },
+      }));
+    } catch (error) {
+      fail(error);
+    }
+    event.target.value = "";
+  };
+  return (
+    <div className="modal-shade">
+      <div className="settings-panel" {...dialog}>
+        <input
+          ref={settingsFile}
+          hidden
+          type="file"
+          accept="application/json"
+          onChange={importSettings}
+        />
+        <aside>
+          {pages.map((item) => (
+            <button
+              className={page === item ? "active" : ""}
+              key={item}
+              onClick={() => setPage(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </aside>
+        <div className="settings-main">
+          <div className="settings-tabs">
+            <span className="active">{page}</span>
+          </div>
+          <div className="settings-content">
+            {page === "General" && (
+              <>
+                <Setting label="Minimum time between each GO">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={settings.minGoInterval}
+                    onChange={(event) =>
+                      patch({ minGoInterval: Number(event.target.value) })
+                    }
+                  />{" "}
+                  seconds
+                </Setting>
+                <Setting label="Require key up before re-arming GO">
+                  <input
+                    type="checkbox"
+                    checked={settings.requireKeyUp}
+                    onChange={(event) =>
+                      patch({ requireKeyUp: event.target.checked })
+                    }
+                  />
+                </Setting>
+                <Setting label="Panic duration">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={settings.panicDuration}
+                    onChange={(event) =>
+                      patch({ panicDuration: Number(event.target.value) })
+                    }
+                  />{" "}
+                  seconds
+                </Setting>
+                <Setting label="Cue list row size">
+                  <select
+                    value={settings.cueSize}
+                    onChange={(event) => patch({ cueSize: event.target.value })}
+                  >
+                    <option>Small</option>
+                    <option>Medium</option>
+                    <option>Large</option>
+                  </select>
+                </Setting>
+                <Setting label="Cue cart button size">
+                  <select
+                    value={settings.cartSize}
+                    onChange={(event) =>
+                      patch({ cartSize: event.target.value })
+                    }
+                  >
+                    <option>Small</option>
+                    <option>Medium</option>
+                    <option>Large</option>
+                  </select>
+                </Setting>
+                <Setting label="Newest active cues">
+                  <select
+                    value={settings.activeNewest}
+                    onChange={(event) =>
+                      patch({ activeNewest: event.target.value })
+                    }
+                  >
+                    <option>Bottom</option>
+                    <option>Top</option>
+                  </select>
+                </Setting>
+                <Setting label="Auto-number new cues">
+                  <input
+                    type="checkbox"
+                    checked={settings.autoNumber}
+                    onChange={(event) =>
+                      patch({ autoNumber: event.target.checked })
+                    }
+                  />
+                </Setting>
+                <Setting label="Number increment">
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.increment}
+                    onChange={(event) =>
+                      patch({ increment: Number(event.target.value) })
+                    }
+                  />
+                </Setting>
+              </>
+            )}
+            {page === "Controls" && (
+              <>
+                <Setting label="GO">
+                  <input
+                    value={settings.goKey}
+                    onChange={(event) => patch({ goKey: event.target.value })}
+                  />
+                </Setting>
+                <Setting label="Panic all">
+                  <input
+                    value={settings.panicKey}
+                    onChange={(event) =>
+                      patch({ panicKey: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Pause all">
+                  <input
+                    value={settings.pauseKey}
+                    onChange={(event) =>
+                      patch({ pauseKey: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Resume all">
+                  <input
+                    value={settings.resumeKey}
+                    onChange={(event) =>
+                      patch({ resumeKey: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Preview selected">
+                  <input
+                    value={settings.previewKey}
+                    onChange={(event) =>
+                      patch({ previewKey: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Stop selected">
+                  <input
+                    value={settings.stopSelectedKey}
+                    onChange={(event) =>
+                      patch({ stopSelectedKey: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Pause/resume selected">
+                  <input
+                    value={settings.pauseSelectedKey}
+                    onChange={(event) =>
+                      patch({ pauseSelectedKey: event.target.value })
+                    }
+                  />
+                </Setting>
+              </>
+            )}
+            {page === "Audition" && (
+              <>
+                <Setting label="Audition mode">
+                  <input
+                    type="checkbox"
+                    checked={settings.audition}
+                    onChange={(event) =>
+                      patch({ audition: event.target.checked })
+                    }
+                  />
+                </Setting>
+                <p>Choose which outputs remain active while auditioning.</p>
+                {[
+                  ["Audio", "auditionAudio"],
+                  ["Video and text", "auditionVideo"],
+                  ["MIDI", "auditionMidi"],
+                  ["MIDI timecode", "auditionTimecode"],
+                  ["Linear timecode", "auditionLtc"],
+                  ["Network", "auditionNetwork"],
+                  ["Light", "auditionLight"],
+                ].map(([label, key]) => (
+                  <Setting label={label} key={key}>
+                    <input
+                      type="checkbox"
+                      checked={settings[key]}
+                      onChange={(event) =>
+                        patch({ [key]: event.target.checked })
+                      }
+                    />
+                  </Setting>
+                ))}
+              </>
+            )}
+            {page === "Collaboration" && (
+              <>
+                <Setting label="Synchronize same-origin tabs">
+                  <input
+                    type="checkbox"
+                    checked={settings.collaboration}
+                    onChange={(event) =>
+                      patch({ collaboration: event.target.checked })
+                    }
+                  />
+                </Setting>
+                <Setting label="Remote collaboration">
+                  <input
+                    type="checkbox"
+                    checked={settings.collaborationRemote}
+                    onChange={(event) =>
+                      patch({ collaborationRemote: event.target.checked })
+                    }
+                  />
+                </Setting>
+                <Setting label="Room">
+                  <input
+                    value={settings.collaborationRoom}
+                    onChange={(event) =>
+                      patch({ collaborationRoom: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="WebSocket server">
+                  <input
+                    value={settings.collaborationUrl}
+                    placeholder="Built-in server"
+                    onChange={(event) =>
+                      patch({ collaborationUrl: event.target.value })
+                    }
+                  />
+                </Setting>
+                <p>
+                  The built-in WebSocket endpoint synchronizes a named room. A
+                  custom compatible endpoint can be supplied.
+                </p>
+              </>
+            )}
+            {page === "Templates" && (
+              <TemplateManager
+                templateType={templateType}
+                setTemplateType={setTemplateType}
+                workspace={workspace}
+                updateTemplate={updateTemplate}
+                setWorkspace={setWorkspace}
+              />
+            )}
+            {page === "Audio" && (
+              <div className="device-settings">
+                <Device
+                  name="Microphone permission"
+                  status={connections.microphone}
+                  label="Request permission..."
+                  action={() => connect("microphone")}
+                />
+                <Setting label="Audio input">
+                  <select
+                    value={settings.audioInput}
+                    onChange={(event) =>
+                      patch({ audioInput: event.target.value })
+                    }
+                  >
+                    <option value="">Browser default</option>
+                    {devices.audioinput.map((item) => (
+                      <option key={item.deviceId} value={item.deviceId}>
+                        {item.label || item.deviceId}
+                      </option>
+                    ))}
+                  </select>
+                </Setting>
+                <PatchManager
+                  title="Audio output patches"
+                  items={settings.audioPatches}
+                  devices={devices.audiooutput}
+                  patch={(audioPatches) => patch({ audioPatches })}
+                  channels
+                />
+              </div>
+            )}
+            {page === "Video" && (
+              <div className="device-settings">
+                <Device
+                  name="Camera permission"
+                  status={connections.camera}
+                  label="Request permission..."
+                  action={() => connect("camera")}
+                />
+                <Setting label="Video input">
+                  <select
+                    value={settings.videoInput}
+                    onChange={(event) =>
+                      patch({ videoInput: event.target.value })
+                    }
+                  >
+                    <option value="">Browser default</option>
+                    {devices.videoinput.map((item) => (
+                      <option key={item.deviceId} value={item.deviceId}>
+                        {item.label || item.deviceId}
+                      </option>
+                    ))}
+                  </select>
+                </Setting>
+                <button onClick={requestScreens}>Request display access</button>
+                <StageManager
+                  stages={settings.videoStages}
+                  screens={devices.screens}
+                  patch={(videoStages) => patch({ videoStages })}
+                  open={openStage}
+                />
+              </div>
+            )}
+            {page === "Light" && (
+              <div className="device-settings">
+                <Device
+                  name="Serial / DMX bridge"
+                  status={connections.serial}
+                  label={
+                    connections.serial === "Connected"
+                      ? "Disconnect"
+                      : "Connect..."
+                  }
+                  action={() => connect("serial")}
+                />
+                <PatchManager
+                  title="Lighting patches"
+                  items={settings.lightPatches}
+                  patch={(lightPatches) => patch({ lightPatches })}
+                  baud
+                />
+                <FixtureManager
+                  fixtures={settings.fixtures}
+                  patch={(fixtures) => patch({ fixtures })}
+                />
+                <button
+                  disabled={connections.serial !== "Connected"}
+                  onClick={() => testSerial("TEST")}
+                >
+                  Send test
+                </button>
+              </div>
+            )}
+            {page === "Network" && (
+              <>
+                <Setting label="Default URL for new cues">
+                  <input
+                    value={settings.networkDefaultUrl}
+                    placeholder="https:// or wss://"
+                    onChange={(event) =>
+                      patch({ networkDefaultUrl: event.target.value })
+                    }
+                  />
+                </Setting>
+                <Setting label="Default method">
+                  <select
+                    value={settings.networkDefaultMethod}
+                    onChange={(event) =>
+                      patch({ networkDefaultMethod: event.target.value })
+                    }
+                  >
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>PATCH</option>
+                    <option>DELETE</option>
+                    <option>GET</option>
+                  </select>
+                </Setting>
+                <p>
+                  Network cues support HTTP, HTTPS, WebSocket, and secure
+                  WebSocket destinations. Chromium does not expose raw UDP or
+                  TCP sockets.
+                </p>
+              </>
+            )}
+            {page === "MIDI" && (
+              <div className="device-settings">
+                <Device
+                  name="Web MIDI"
+                  status={connections.midi}
+                  label={
+                    connections.midi === "Not connected"
+                      ? "Connect..."
+                      : "Disconnect"
+                  }
+                  action={() => connect("midi")}
+                />
+                <PatchManager
+                  title="MIDI output patches"
+                  items={settings.midiPatches}
+                  devices={devices.midioutput}
+                  patch={(midiPatches) => patch({ midiPatches })}
+                />
+                <button
+                  onClick={testMidi}
+                  disabled={!devices.midioutput.length}
+                >
+                  Test note
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="settings-footer">
+          <button onClick={() => settingsFile.current?.click()}>
+            Import Settings
+          </button>
+          <button onClick={exportSettings}>Export Settings</button>
+          <button onClick={close}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
 }
-function TemplateManager({ templateType, setTemplateType, workspace, updateTemplate, setWorkspace }) { return <div className="template-settings"><div>{cueTypes.map(([type, Icon]) => <button className={templateType === type ? "selected" : ""} key={type} onClick={() => setTemplateType(type)}><Icon size={14} />{type}</button>)}</div><section><Setting label="Default name"><input value={workspace.templates[templateType].name} onChange={(event) => updateTemplate({ name: event.target.value })} /></Setting><Setting label="Default continue mode"><select value={workspace.templates[templateType].continueMode} onChange={(event) => updateTemplate({ continueMode: event.target.value })}><option>Do not continue</option><option>Auto continue</option><option>Auto follow</option></select></Setting><Setting label="Default color"><select value={workspace.templates[templateType].color} onChange={(event) => updateTemplate({ color: event.target.value })}>{colors.map((color) => <option key={color}>{color}</option>)}</select></Setting><hr /><h3>Workspace templates</h3>{workspace.workspaceTemplates.map((template) => <div className="template-row" key={template.id}><strong>{template.name}</strong><button onClick={() => setWorkspace(normalizeWorkspace({ ...structuredClone(template.workspace), workspaceTemplates: workspace.workspaceTemplates }))}>Use</button><button onClick={() => setWorkspace((state) => ({ ...state, workspaceTemplates: state.workspaceTemplates.filter((item) => item.id !== template.id) }))}>Delete</button></div>)}{!workspace.workspaceTemplates.length && <p>No saved workspace templates.</p>}</section></div>; }
-function PatchManager({ title, items, devices = [], patch, channels = false, baud = false }) { const update = (id, value) => patch(items.map((item) => item.id === id ? { ...item, ...value } : item)); return <section className="patch-manager"><div className="patch-head"><strong>{title}</strong><button onClick={() => patch([...items, { id: uid(), name: `Patch ${items.length + 1}`, deviceId: "", channels: 2, baudRate: 250000 }])}>Add patch</button></div><div className="patch-table">{items.map((item) => <div key={item.id}><input value={item.name} onChange={(event) => update(item.id, { name: event.target.value })} />{devices.length ? <select value={item.deviceId || ""} onChange={(event) => update(item.id, { deviceId: event.target.value })}><option value="">Browser default</option>{devices.map((device) => <option key={device.deviceId || device.id} value={device.deviceId || device.id}>{device.label || device.name || device.deviceId || device.id}</option>)}</select> : <span>{baud ? "Web Serial" : "No device discovered"}</span>}{channels && <input aria-label={`${item.name} channels`} type="number" min="1" max="32" value={item.channels || 2} onChange={(event) => update(item.id, { channels: Number(event.target.value) })} />}{baud && <input aria-label={`${item.name} baud rate`} type="number" value={item.baudRate || 250000} onChange={(event) => update(item.id, { baudRate: Number(event.target.value) })} />}<button disabled={items.length === 1} onClick={() => patch(items.filter((value) => value.id !== item.id))}>Delete</button></div>)}</div></section>; }
-function StageManager({ stages, screens, patch, open }) { const update = (id, value) => patch(stages.map((stage) => stage.id === id ? { ...stage, ...value } : stage)); return <section className="patch-manager"><div className="patch-head"><strong>Video stages</strong><button onClick={() => patch([...stages, { id: uid(), name: `Stage ${stages.length + 1}`, screen: "" }])}>Add stage</button></div><div className="patch-table">{stages.map((stage) => <div key={stage.id}><input value={stage.name} onChange={(event) => update(stage.id, { name: event.target.value })} /><select value={stage.screen || ""} onChange={(event) => update(stage.id, { screen: event.target.value })}><option value="">Current display</option>{screens.map((screen) => <option key={`${screen.left}-${screen.top}`} value={screen.label}>{screen.label || `${screen.width} by ${screen.height}`}</option>)}</select><button onClick={() => open(stage.id)}>Open</button><button disabled={stages.length === 1} onClick={() => patch(stages.filter((value) => value.id !== stage.id))}>Delete</button></div>)}</div></section>; }
-function FixtureManager({ fixtures, patch }) { const update = (id, value) => patch(fixtures.map((fixture) => fixture.id === id ? { ...fixture, ...value } : fixture)), parameters = ["intensity", "red", "green", "blue", "white", "pan", "tilt"]; return <section className="fixture-manager"><div className="patch-head"><strong>Fixture patch</strong><button onClick={() => patch([...fixtures, { id: uid(), name: `Fixture ${fixtures.length + 1}`, universe: 1, address: 1, channels: { intensity: 1 } }])}>Add fixture</button></div>{fixtures.map((fixture) => <div key={fixture.id}><input value={fixture.name} onChange={(event) => update(fixture.id, { name: event.target.value })} /><label>Universe <input type="number" min="1" value={fixture.universe} onChange={(event) => update(fixture.id, { universe: Number(event.target.value) })} /></label><label>Address <input type="number" min="1" max="512" value={fixture.address} onChange={(event) => update(fixture.id, { address: Number(event.target.value) })} /></label><div>{parameters.map((parameter) => <label key={parameter}><input type="checkbox" checked={fixture.channels[parameter] != null} onChange={(event) => { const channels = { ...fixture.channels }; if (event.target.checked) channels[parameter] = Object.keys(channels).length + 1; else delete channels[parameter]; update(fixture.id, { channels }); }} />{parameter}{fixture.channels[parameter] != null && <input type="number" min="1" max="32" value={fixture.channels[parameter]} onChange={(event) => update(fixture.id, { channels: { ...fixture.channels, [parameter]: Number(event.target.value) } })} />}</label>)}</div><button onClick={() => patch(fixtures.filter((value) => value.id !== fixture.id))}>Delete</button></div>)}</section>; }
-function PropertyPaste({ selected, setSelected, apply, close }) { const groups = [["timing", "Timing and playback"], ["triggers", "Triggers"], ["appearance", "Style and geometry"], ["action", "Cue action and routing"]], dialog = useDialog(close, "Paste Cue Properties"); return <div className="modal-shade"><div className="small-panel" {...dialog}><h2>Paste Cue Properties</h2>{groups.map(([key, label]) => <label key={key}><input type="checkbox" checked={selected.includes(key)} onChange={(event) => setSelected(event.target.checked ? [...selected, key] : selected.filter((item) => item !== key))} />{label}</label>)}<footer><button onClick={close}>Cancel</button><button disabled={!selected.length} onClick={() => apply()}>Paste</button></footer></div></div>; }
-function CueSelector({ cues, select, close }) { const [query, setQuery] = useState(""), matches = cues.filter((cue) => `${cue.number} ${cue.name} ${cue.type}`.toLowerCase().includes(query.toLowerCase())), dialog = useDialog(close, "Select cue"); return <div className="modal-shade"><div className="selector-panel" {...dialog}><header><Search size={16} /><input autoFocus aria-label="Cue number or name" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cue number or name" /><button aria-label="Close cue selector" onClick={close}><X size={16} /></button></header><section>{matches.map((cue) => <button key={cue.id} onClick={() => select(cue)}><strong>{cue.number}</strong><span>{cue.name}</span><small>{cue.type}</small></button>)}</section></div></div>; }
-function OperationsPanel({ kind, workspace, patchSettings, active, remaining, visitControls, openStage, close }) { const cues = workspace.lists.flatMap((list) => list.cues), settings = workspace.settings, fixtures = settings.fixtures, timecodeCues = cues.filter((cue) => cue.type === "Timecode" || cue.timecodeTriggerEnabled), dialog = useDialog(close, kind); return <div className="modal-shade"><div className="operations-panel" {...dialog}><header><strong>{kind}</strong><button aria-label={`Close ${kind}`} onClick={close}><X size={17} /></button></header><section>{kind === "Override Controls" && <><button onClick={() => visitControls((control) => control.setVolume?.(0))}>Mute all audio</button><button onClick={() => visitControls((control) => control.setOpacity?.(0))}>Black all stages</button><button onClick={() => visitControls((control) => { control.setVolume?.(1); control.setOpacity?.(1); })}>Restore outputs</button></>}{kind === "Light Dashboard" && (fixtures.length ? fixtures.map((fixture) => <div key={fixture.id}><strong>{fixture.name}</strong><span>Universe {fixture.universe}, address {fixture.address}</span></div>) : <div className="status-empty">No lighting fixtures patched</div>)}{kind === "Light Patch" && <FixtureManager fixtures={fixtures} patch={(value) => patchSettings({ fixtures: value })} />}{kind === "DMX Status" && <><p>{fixtures.length} patched fixtures across {[...new Set(fixtures.map((fixture) => fixture.universe))].length} universes.</p>{fixtures.map((fixture) => <div key={fixture.id}>{fixture.name}: universe {fixture.universe}, address {fixture.address}</div>)}</>}{kind === "Timecode Status" && (timecodeCues.length ? timecodeCues.map((cue) => <div key={cue.id}><strong>{cue.number} - {cue.name}</strong><span>{cue.type === "Timecode" ? `${cue.timecodeMode} ${cue.timecodeStart} to ${cue.timecodeEnd}` : `Trigger ${cue.timecodeTrigger}`}</span></div>) : <div className="status-empty">No timecode cues or triggers configured</div>)}</section><footer><span>{active.length} active cues{active.length ? `; ${Object.values(remaining).filter(Number.isFinite).length} timed` : ""}</span>{kind === "Timecode Status" && <button onClick={() => openStage()}>Open stage</button>}<button onClick={close}>Done</button></footer></div></div>; }
-function Device({ name, status, label, action }) { return <div className="device-row"><strong>{name}</strong><span>{status === "Failed" && <AlertTriangle size={14} />} {status}</span><button onClick={action}>{label}</button></div>; }
-function Setting({ label, children }) { return <label className="setting"><span>{label}</span><div>{children}</div></label>; }
+function TemplateManager({
+  templateType,
+  setTemplateType,
+  workspace,
+  updateTemplate,
+  setWorkspace,
+}) {
+  return (
+    <div className="template-settings">
+      <div>
+        {cueTypes.map(([type, Icon]) => (
+          <button
+            className={templateType === type ? "selected" : ""}
+            key={type}
+            onClick={() => setTemplateType(type)}
+          >
+            <Icon size={14} />
+            {type}
+          </button>
+        ))}
+      </div>
+      <section>
+        <Setting label="Default name">
+          <input
+            value={workspace.templates[templateType].name}
+            onChange={(event) => updateTemplate({ name: event.target.value })}
+          />
+        </Setting>
+        <Setting label="Default continue mode">
+          <select
+            value={workspace.templates[templateType].continueMode}
+            onChange={(event) =>
+              updateTemplate({ continueMode: event.target.value })
+            }
+          >
+            <option>Do not continue</option>
+            <option>Auto continue</option>
+            <option>Auto follow</option>
+          </select>
+        </Setting>
+        <Setting label="Default color">
+          <select
+            value={workspace.templates[templateType].color}
+            onChange={(event) => updateTemplate({ color: event.target.value })}
+          >
+            {colors.map((color) => (
+              <option key={color}>{color}</option>
+            ))}
+          </select>
+        </Setting>
+        <hr />
+        <h3>Workspace templates</h3>
+        {workspace.workspaceTemplates.map((template) => (
+          <div className="template-row" key={template.id}>
+            <strong>{template.name}</strong>
+            <button
+              onClick={() =>
+                setWorkspace(
+                  normalizeWorkspace({
+                    ...structuredClone(template.workspace),
+                    workspaceTemplates: workspace.workspaceTemplates,
+                  }),
+                )
+              }
+            >
+              Use
+            </button>
+            <button
+              onClick={() =>
+                setWorkspace((state) => ({
+                  ...state,
+                  workspaceTemplates: state.workspaceTemplates.filter(
+                    (item) => item.id !== template.id,
+                  ),
+                }))
+              }
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+        {!workspace.workspaceTemplates.length && (
+          <p>No saved workspace templates.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+function PatchManager({
+  title,
+  items,
+  devices = [],
+  patch,
+  channels = false,
+  baud = false,
+}) {
+  const update = (id, value) =>
+    patch(items.map((item) => (item.id === id ? { ...item, ...value } : item)));
+  return (
+    <section className="patch-manager">
+      <div className="patch-head">
+        <strong>{title}</strong>
+        <button
+          onClick={() =>
+            patch([
+              ...items,
+              {
+                id: uid(),
+                name: `Patch ${items.length + 1}`,
+                deviceId: "",
+                channels: 2,
+                baudRate: 250000,
+              },
+            ])
+          }
+        >
+          Add patch
+        </button>
+      </div>
+      <div className="patch-table">
+        {items.map((item) => (
+          <div key={item.id}>
+            <input
+              value={item.name}
+              onChange={(event) =>
+                update(item.id, { name: event.target.value })
+              }
+            />
+            {devices.length ? (
+              <select
+                value={item.deviceId || ""}
+                onChange={(event) =>
+                  update(item.id, { deviceId: event.target.value })
+                }
+              >
+                <option value="">Browser default</option>
+                {devices.map((device) => (
+                  <option
+                    key={device.deviceId || device.id}
+                    value={device.deviceId || device.id}
+                  >
+                    {device.label ||
+                      device.name ||
+                      device.deviceId ||
+                      device.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span>{baud ? "Web Serial" : "No device discovered"}</span>
+            )}
+            {channels && (
+              <input
+                aria-label={`${item.name} channels`}
+                type="number"
+                min="1"
+                max="32"
+                value={item.channels || 2}
+                onChange={(event) =>
+                  update(item.id, { channels: Number(event.target.value) })
+                }
+              />
+            )}
+            {baud && (
+              <input
+                aria-label={`${item.name} baud rate`}
+                type="number"
+                value={item.baudRate || 250000}
+                onChange={(event) =>
+                  update(item.id, { baudRate: Number(event.target.value) })
+                }
+              />
+            )}
+            <button
+              disabled={items.length === 1}
+              onClick={() =>
+                patch(items.filter((value) => value.id !== item.id))
+              }
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+function StageManager({ stages, screens, patch, open }) {
+  const update = (id, value) =>
+    patch(
+      stages.map((stage) => (stage.id === id ? { ...stage, ...value } : stage)),
+    );
+  return (
+    <section className="patch-manager">
+      <div className="patch-head">
+        <strong>Video stages</strong>
+        <button
+          onClick={() =>
+            patch([
+              ...stages,
+              { id: uid(), name: `Stage ${stages.length + 1}`, screen: "" },
+            ])
+          }
+        >
+          Add stage
+        </button>
+      </div>
+      <div className="patch-table">
+        {stages.map((stage) => (
+          <div key={stage.id}>
+            <input
+              value={stage.name}
+              onChange={(event) =>
+                update(stage.id, { name: event.target.value })
+              }
+            />
+            <select
+              value={stage.screen || ""}
+              onChange={(event) =>
+                update(stage.id, { screen: event.target.value })
+              }
+            >
+              <option value="">Current display</option>
+              {screens.map((screen) => (
+                <option
+                  key={`${screen.left}-${screen.top}`}
+                  value={screen.label}
+                >
+                  {screen.label || `${screen.width} by ${screen.height}`}
+                </option>
+              ))}
+            </select>
+            <button onClick={() => open(stage.id)}>Open</button>
+            <button
+              disabled={stages.length === 1}
+              onClick={() =>
+                patch(stages.filter((value) => value.id !== stage.id))
+              }
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+function FixtureManager({ fixtures, patch }) {
+  const update = (id, value) =>
+      patch(
+        fixtures.map((fixture) =>
+          fixture.id === id ? { ...fixture, ...value } : fixture,
+        ),
+      ),
+    parameters = ["intensity", "red", "green", "blue", "white", "pan", "tilt"];
+  return (
+    <section className="fixture-manager">
+      <div className="patch-head">
+        <strong>Fixture patch</strong>
+        <button
+          onClick={() =>
+            patch([
+              ...fixtures,
+              {
+                id: uid(),
+                name: `Fixture ${fixtures.length + 1}`,
+                universe: 1,
+                address: 1,
+                channels: { intensity: 1 },
+              },
+            ])
+          }
+        >
+          Add fixture
+        </button>
+      </div>
+      {fixtures.map((fixture) => (
+        <div key={fixture.id}>
+          <input
+            value={fixture.name}
+            onChange={(event) =>
+              update(fixture.id, { name: event.target.value })
+            }
+          />
+          <label>
+            Universe{" "}
+            <input
+              type="number"
+              min="1"
+              value={fixture.universe}
+              onChange={(event) =>
+                update(fixture.id, { universe: Number(event.target.value) })
+              }
+            />
+          </label>
+          <label>
+            Address{" "}
+            <input
+              type="number"
+              min="1"
+              max="512"
+              value={fixture.address}
+              onChange={(event) =>
+                update(fixture.id, { address: Number(event.target.value) })
+              }
+            />
+          </label>
+          <div>
+            {parameters.map((parameter) => (
+              <label key={parameter}>
+                <input
+                  type="checkbox"
+                  checked={fixture.channels[parameter] != null}
+                  onChange={(event) => {
+                    const channels = { ...fixture.channels };
+                    if (event.target.checked)
+                      channels[parameter] = Object.keys(channels).length + 1;
+                    else delete channels[parameter];
+                    update(fixture.id, { channels });
+                  }}
+                />
+                {parameter}
+                {fixture.channels[parameter] != null && (
+                  <input
+                    type="number"
+                    min="1"
+                    max="32"
+                    value={fixture.channels[parameter]}
+                    onChange={(event) =>
+                      update(fixture.id, {
+                        channels: {
+                          ...fixture.channels,
+                          [parameter]: Number(event.target.value),
+                        },
+                      })
+                    }
+                  />
+                )}
+              </label>
+            ))}
+          </div>
+          <button
+            onClick={() =>
+              patch(fixtures.filter((value) => value.id !== fixture.id))
+            }
+          >
+            Delete
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+function PropertyPaste({ selected, setSelected, apply, close }) {
+  const groups = [
+      ["timing", "Timing and playback"],
+      ["triggers", "Triggers"],
+      ["appearance", "Style and geometry"],
+      ["action", "Cue action and routing"],
+    ],
+    dialog = useDialog(close, "Paste Cue Properties");
+  return (
+    <div className="modal-shade">
+      <div className="small-panel" {...dialog}>
+        <h2>Paste Cue Properties</h2>
+        {groups.map(([key, label]) => (
+          <label key={key}>
+            <input
+              type="checkbox"
+              checked={selected.includes(key)}
+              onChange={(event) =>
+                setSelected(
+                  event.target.checked
+                    ? [...selected, key]
+                    : selected.filter((item) => item !== key),
+                )
+              }
+            />
+            {label}
+          </label>
+        ))}
+        <footer>
+          <button onClick={close}>Cancel</button>
+          <button disabled={!selected.length} onClick={() => apply()}>
+            Paste
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+function CueSelector({ cues, select, close }) {
+  const [query, setQuery] = useState(""),
+    matches = cues.filter((cue) =>
+      `${cue.number} ${cue.name} ${cue.type}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
+    ),
+    dialog = useDialog(close, "Select cue");
+  return (
+    <div className="modal-shade">
+      <div className="selector-panel" {...dialog}>
+        <header>
+          <Search size={16} />
+          <input
+            autoFocus
+            aria-label="Cue number or name"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Cue number or name"
+          />
+          <button aria-label="Close cue selector" onClick={close}>
+            <X size={16} />
+          </button>
+        </header>
+        <section>
+          {matches.map((cue) => (
+            <button key={cue.id} onClick={() => select(cue)}>
+              <strong>{cue.number}</strong>
+              <span>{cue.name}</span>
+              <small>{cue.type}</small>
+            </button>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+function OperationsPanel({
+  kind,
+  workspace,
+  patchSettings,
+  active,
+  remaining,
+  visitControls,
+  openStage,
+  close,
+}) {
+  const cues = workspace.lists.flatMap((list) => list.cues),
+    settings = workspace.settings,
+    fixtures = settings.fixtures,
+    timecodeCues = cues.filter(
+      (cue) => cue.type === "Timecode" || cue.timecodeTriggerEnabled,
+    ),
+    dialog = useDialog(close, kind);
+  return (
+    <div className="modal-shade">
+      <div className="operations-panel" {...dialog}>
+        <header>
+          <strong>{kind}</strong>
+          <button aria-label={`Close ${kind}`} onClick={close}>
+            <X size={17} />
+          </button>
+        </header>
+        <section>
+          {kind === "Override Controls" && (
+            <>
+              <button
+                onClick={() =>
+                  visitControls((control) => control.setVolume?.(0))
+                }
+              >
+                Mute all audio
+              </button>
+              <button
+                onClick={() =>
+                  visitControls((control) => control.setOpacity?.(0))
+                }
+              >
+                Black all stages
+              </button>
+              <button
+                onClick={() =>
+                  visitControls((control) => {
+                    control.setVolume?.(1);
+                    control.setOpacity?.(1);
+                  })
+                }
+              >
+                Restore outputs
+              </button>
+            </>
+          )}
+          {kind === "Light Dashboard" &&
+            (fixtures.length ? (
+              fixtures.map((fixture) => (
+                <div key={fixture.id}>
+                  <strong>{fixture.name}</strong>
+                  <span>
+                    Universe {fixture.universe}, address {fixture.address}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="status-empty">No lighting fixtures patched</div>
+            ))}
+          {kind === "Light Patch" && (
+            <FixtureManager
+              fixtures={fixtures}
+              patch={(value) => patchSettings({ fixtures: value })}
+            />
+          )}
+          {kind === "DMX Status" && (
+            <>
+              <p>
+                {fixtures.length} patched fixtures across{" "}
+                {
+                  [...new Set(fixtures.map((fixture) => fixture.universe))]
+                    .length
+                }{" "}
+                universes.
+              </p>
+              {fixtures.map((fixture) => (
+                <div key={fixture.id}>
+                  {fixture.name}: universe {fixture.universe}, address{" "}
+                  {fixture.address}
+                </div>
+              ))}
+            </>
+          )}
+          {kind === "Timecode Status" &&
+            (timecodeCues.length ? (
+              timecodeCues.map((cue) => (
+                <div key={cue.id}>
+                  <strong>
+                    {cue.number} - {cue.name}
+                  </strong>
+                  <span>
+                    {cue.type === "Timecode"
+                      ? `${cue.timecodeMode} ${cue.timecodeStart} to ${cue.timecodeEnd}`
+                      : `Trigger ${cue.timecodeTrigger}`}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="status-empty">
+                No timecode cues or triggers configured
+              </div>
+            ))}
+        </section>
+        <footer>
+          <span>
+            {active.length} active cues
+            {active.length
+              ? `; ${Object.values(remaining).filter(Number.isFinite).length} timed`
+              : ""}
+          </span>
+          {kind === "Timecode Status" && (
+            <button onClick={() => openStage()}>Open stage</button>
+          )}
+          <button onClick={close}>Done</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+function Device({ name, status, label, action }) {
+  return (
+    <div className="device-row">
+      <strong>{name}</strong>
+      <span>
+        {status === "Failed" && <AlertTriangle size={14} />} {status}
+      </span>
+      <button onClick={action}>{label}</button>
+    </div>
+  );
+}
+function Setting({ label, children }) {
+  return (
+    <label className="setting">
+      <span>{label}</span>
+      <div>{children}</div>
+    </label>
+  );
+}
 function HelpPanel({ kind, message, settings, close }) {
-  const body = message ? <p>{message}</p> : kind === "Browser limitations" ? <><p>StageCue uses getUserMedia for microphone and camera cues, Web MIDI for MIDI cues, MIDI timecode, and Standard MIDI Files, Web Serial for lighting or DMX bridges, fetch and WebSocket for Network cues, BroadcastChannel for same-origin collaboration, the File System Access API for workspaces, IndexedDB for media, Wake Lock for Show mode, and popup windows for stage output.</p><p>Chromium still cannot directly provide raw UDP, raw TCP, Art-Net, native Core Audio routing, AppleScript, desktop blackout, or remote collaboration without a bridge or server. Those controls are not exposed.</p></> : kind === "Keyboard Shortcuts" ? <><p>GO: {settings.goKey}</p><p>Panic all: {settings.panicKey}</p><p>Pause all: {settings.pauseKey}</p><p>Resume all: {settings.resumeKey}</p><p>Preview selected: {settings.previewKey}</p><p>Stop selected: {settings.stopSelectedKey}</p><p>Pause or resume selected: {settings.pauseSelectedKey}</p><p>Up and Down: select cue</p><p>Delete or Backspace: delete selected cues</p><p>Cmd or Ctrl + C, X, V, A: copy, cut, paste, select all</p><p>Cmd or Ctrl + F: find cues</p><p>Cmd or Ctrl + K: toolbox</p><p>Cmd or Ctrl + 0 through 9: create common cues</p><p>Cmd or Ctrl + S: save workspace</p></> : kind === "About StageCue" ? <><p>StageCue is a browser-native cue sequencer for Chromium.</p><p>Workspace data stays in this browser unless you export or synchronize it.</p></> : <><p>StageCue is a Chromium show-control workspace. Create cues from the toolbox, configure real devices in Workspace Settings, edit actions in the inspector, and press GO.</p></>;
+  const body = message ? (
+    <p>{message}</p>
+  ) : kind === "Browser limitations" ? (
+    <>
+      <p>
+        WebCue uses getUserMedia for microphone and camera cues, Web MIDI for
+        MIDI cues, MIDI timecode, and Standard MIDI Files, Web Serial for
+        lighting or DMX bridges, fetch and WebSocket for Network cues,
+        BroadcastChannel for same-origin collaboration, the File System Access
+        API for workspaces, IndexedDB for media, Wake Lock for Show mode, and
+        popup windows for stage output.
+      </p>
+      <p>
+        Chromium still cannot directly provide raw UDP, raw TCP, Art-Net, native
+        Core Audio routing, AppleScript, desktop blackout, or remote
+        collaboration without a bridge or server. Those controls are not
+        exposed.
+      </p>
+    </>
+  ) : kind === "Keyboard Shortcuts" ? (
+    <>
+      <p>GO: {settings.goKey}</p>
+      <p>Panic all: {settings.panicKey}</p>
+      <p>Pause all: {settings.pauseKey}</p>
+      <p>Resume all: {settings.resumeKey}</p>
+      <p>Preview selected: {settings.previewKey}</p>
+      <p>Stop selected: {settings.stopSelectedKey}</p>
+      <p>Pause or resume selected: {settings.pauseSelectedKey}</p>
+      <p>Up and Down: select cue</p>
+      <p>Delete or Backspace: delete selected cues</p>
+      <p>Cmd or Ctrl + C, X, V, A: copy, cut, paste, select all</p>
+      <p>Cmd or Ctrl + F: find cues</p>
+      <p>Cmd or Ctrl + K: toolbox</p>
+      <p>Cmd or Ctrl + 0 through 9: create common cues</p>
+      <p>Cmd or Ctrl + S: save workspace</p>
+    </>
+  ) : kind === "About WebCue" ? (
+    <>
+      <p>WebCue is a browser-native cue sequencer for Chromium.</p>
+      <p>
+        Workspace data stays in this browser unless you export or synchronize
+        it.
+      </p>
+    </>
+  ) : (
+    <>
+      <p>
+        WebCue is a Chromium show-control workspace. Create cues from the
+        toolbox, configure real devices in Workspace Settings, edit actions in
+        the inspector, and press GO.
+      </p>
+    </>
+  );
   const dialog = useDialog(close, kind);
-  return <div className="modal-shade"><div className="help-panel" {...dialog}><div><h2>{kind}</h2><button aria-label={`Close ${kind}`} onClick={close}><X size={18} /></button></div>{body}<button onClick={close}>Done</button></div></div>;
+  return (
+    <div className="modal-shade">
+      <div className="help-panel" {...dialog}>
+        <div>
+          <h2>{kind}</h2>
+          <button aria-label={`Close ${kind}`} onClick={close}>
+            <X size={18} />
+          </button>
+        </div>
+        {body}
+        <button onClick={close}>Done</button>
+      </div>
+    </div>
+  );
 }

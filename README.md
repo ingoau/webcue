@@ -1,19 +1,23 @@
 Note: Basically this entire repo is AI generated as a kinda experiment. Expect stuff to break.
 
-# StageCue
+# WebCue
 
-StageCue is a Chromium-native show-control workspace modeled on QLab.
+WebCue is a Chromium-native show-control workspace modeled on QLab.
 
 ## Run
 
-Requires Node.js 22.13 or newer.
+Requires Bun 1.3 or newer.
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
-Use `npm test` for the production build and behavioral checks, and `npm run lint` for source validation.
+Use `bun run test` for the production build and behavioral checks, `bun run lint` for source validation, and `bun run format` to format the code.
+
+## Deploy
+
+`bun run build` writes the static site to `dist`. Deploy that directory to Vercel, Cloudflare Pages, Netlify, or any static host serving the site at its domain root.
 
 ## Implemented
 
@@ -25,8 +29,6 @@ Use `npm test` for the production build and behavioral checks, and `npm run lint
 - Fixture-based lighting, per-cue MIDI/timecode patches, SMPTE MIDI files and broad MIDI/MSC/system-message editing
 - Workspace warnings, operational windows, media collection/relinking, settings/templates, JSON import/export, IndexedDB media, same-origin and WebSocket collaboration, display placement and Wake Lock
 
-See [outputs/README.md](outputs/README.md) for the complete feature and browser-limit notes.
-
 ## Browser limits
 
-Chromium cannot expose native Core Audio patching or Audio Units, arbitrary local processes and AppleScript, desktop blackout, raw UDP/TCP such as Art-Net or OSC, or serverless remote-machine collaboration. StageCue omits those controls instead of presenting inactive UI. Hardware APIs request browser permission when used.
+Chromium cannot expose native Core Audio patching or Audio Units, arbitrary local processes and AppleScript, desktop blackout, raw UDP/TCP such as Art-Net or OSC, or serverless remote-machine collaboration. WebCue omits those controls instead of presenting inactive UI. Hardware APIs request browser permission when used.

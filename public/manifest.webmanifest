@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "StageCue",
-  "short_name": "StageCue",
+  "name": "WebCue",
+  "short_name": "WebCue",
   "description": "Browser-native live show control for Chromium.",
   "start_url": "/",
   "scope": "/",
