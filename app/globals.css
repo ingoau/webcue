@@ -1921,6 +1921,28 @@ footer > span {
   border-radius: 4px;
   background: #4a4a4a;
 }
+.qlab-import-warning {
+  width: min(680px, 92vw);
+}
+.qlab-warning-title {
+  display: flex;
+  gap: 12px;
+  color: #ffd86b;
+}
+.qlab-warning-title h2,
+.qlab-warning-title p {
+  margin: 0 0 6px;
+}
+.qlab-import-warning ul {
+  max-height: 42vh;
+  margin: 14px 0;
+  padding-left: 28px;
+  overflow: auto;
+  color: #ddd;
+}
+.qlab-import-warning li {
+  margin: 8px 0;
+}
 .selector-panel {
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr);

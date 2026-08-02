@@ -87,6 +87,7 @@ import {
   timelineLength,
   visualFilter,
 } from "./features.mjs";
+import { importQLab } from "./qlab.mjs";
 
 const cueTypes = [
   ["Group", Group],
@@ -418,7 +419,7 @@ const normalizeWorkspace = (value) => ({
 const cueWarnings = (workspace) =>
   workspace.lists.flatMap((list) =>
     list.cues.flatMap((cue) => {
-      const warnings = [];
+      const warnings = [...(cue.importWarnings || [])];
       if (["Audio", "Video", "MIDI File"].includes(cue.type) && !cue.fileKey)
         warnings.push("Missing media target");
       if (
@@ -701,6 +702,7 @@ export default function Home() {
   const [recording, setRecording] = useState(null);
   const [settingsPage, setSettingsPage] = useState("General");
   const [help, setHelp] = useState("");
+  const [qlabReport, setQlabReport] = useState(null);
   const [notice, setNotice] = useState("");
   const [runtimeWarnings, setRuntimeWarnings] = useState({});
   const [goProtection, setGoProtection] = useState("");
@@ -3152,34 +3154,63 @@ export default function Home() {
     anchor.click();
     URL.revokeObjectURL(anchor.href);
   };
+  const loadWorkspaceFile = async (file, handle = null) => {
+    const qlab = /\.(qlab5|zip)$/i.test(file.name);
+    let value, report;
+    if (qlab) {
+      const imported = await importQLab(file);
+      for (const media of imported.media)
+        await storeFile(
+          media.key,
+          new Blob([media.bytes], { type: media.type }),
+        );
+      value = normalizeWorkspace(imported.workspace);
+      report = imported.report;
+      handle = null;
+    } else
+      value = normalizeWorkspace(
+        await importWorkspaceFiles(JSON.parse(await file.text())),
+      );
+    const first =
+      value.lists.find((item) => item.id === value.currentList)?.cues[0]?.id ||
+      "";
+    workspaceHandle.current = handle;
+    setWorkspace({
+      ...value,
+      name: qlab ? value.name : file.name.replace(/\.json$/i, ""),
+    });
+    setSelected(first);
+    setSelectedIds(first ? [first] : []);
+    setPlayhead(first);
+    if (report) {
+      setQLabReport(report);
+      setNotice(
+        `Imported ${report.cues} QLab cues. Review the conversion warnings.`,
+      );
+    }
+  };
   const openWorkspace = async () => {
     try {
       if ("showOpenFilePicker" in window) {
         const [handle] = await (window as any).showOpenFilePicker({
           types: [
             {
-              description: "WebCue workspace",
-              accept: { "application/json": [".json"] },
+              description: "WebCue or QLab workspace",
+              accept: {
+                "application/json": [".json"],
+                "application/octet-stream": [".qlab5"],
+                "application/zip": [".zip"],
+              },
             },
           ],
         });
-        const value = normalizeWorkspace(
-            await importWorkspaceFiles(
-              JSON.parse(await (await handle.getFile()).text()),
-            ),
-          ),
-          first =
-            value.lists.find((item) => item.id === value.currentList)?.cues[0]
-              ?.id || "";
-        workspaceHandle.current = handle;
-        setWorkspace({ ...value, name: handle.name.replace(/\.json$/i, "") });
-        setSelected(first);
-        setSelectedIds(first ? [first] : []);
-        setPlayhead(first);
+        await loadWorkspaceFile(await handle.getFile(), handle);
         return;
       }
     } catch (error) {
       if ((error as DOMException).name === "AbortError") return;
+      fail(error);
+      return;
     }
     fileRef.current?.click();
   };
@@ -3187,19 +3218,11 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const value = normalizeWorkspace(
-          await importWorkspaceFiles(JSON.parse(await file.text())),
-        ),
-        first =
-          value.lists.find((item) => item.id === value.currentList)?.cues[0]
-            ?.id || "";
-      workspaceHandle.current = null;
-      setWorkspace({ ...value, name: file.name.replace(/\.json$/i, "") });
-      setSelected(first);
-      setSelectedIds(first ? [first] : []);
-      setPlayhead(first);
+      await loadWorkspaceFile(file);
     } catch (error) {
       fail(error);
+    } finally {
+      event.target.value = "";
     }
   };
   const collectMedia = async () => {
@@ -3894,7 +3917,7 @@ export default function Home() {
         ref={fileRef}
         hidden
         type="file"
-        accept="application/json"
+        accept="application/json,.qlab5,.zip"
         onChange={importWorkspace}
       />
       <input
@@ -4556,6 +4579,12 @@ export default function Home() {
           visitControls={(callback) => controllers.current.forEach(callback)}
           openStage={openStage}
           close={() => setOperationsOpen("")}
+        />
+      )}
+      {qlabReport && (
+        <QLabImportWarning
+          report={qlabReport}
+          close={() => setQlabReport(null)}
         />
       )}
       {help && (
@@ -7198,6 +7227,40 @@ function ContextMenu({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function QLabImportWarning({ report, close }) {
+  const dialog = useDialog(close, "QLab import warning");
+  return (
+    <div className="modal-shade">
+      <div className="small-panel qlab-import-warning" {...dialog}>
+        <div className="qlab-warning-title">
+          <AlertTriangle size={22} />
+          <div>
+            <h2>QLab import needs review</h2>
+            <p>
+              Imported {report.cues} cues from {report.lists} lists using QLab{" "}
+              {report.version} data. {report.media} media files were linked.
+            </p>
+          </div>
+        </div>
+        <ul>
+          {report.issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+        <p>
+          {report.cueWarnings} imported cues have persistent warnings in
+          Workspace Status.
+        </p>
+        <footer>
+          <button autoFocus onClick={close}>
+            Review imported workspace
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
