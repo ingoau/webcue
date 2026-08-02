@@ -1,4 +1,4 @@
-const cacheName = "webcue-v1";
+const cacheName = "webcue-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
