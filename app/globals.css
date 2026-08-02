@@ -107,6 +107,7 @@ button {
     34px;
   background: var(--bg);
   user-select: none;
+  color-scheme: var(--scheme, dark);
 }
 .app > * {
   min-width: 0;
@@ -2015,6 +2016,211 @@ footer > span {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* Named themes override the original WebCue palette. The Default theme above
+   intentionally keeps every existing color untouched. */
+.app:not([data-theme="Default"]) {
+  background: var(--bg);
+  color: var(--text);
+}
+.app:not([data-theme="Default"]) .menu-bar,
+.app:not([data-theme="Default"]) footer,
+.app:not([data-theme="Default"]) .settings-panel > aside,
+.app:not([data-theme="Default"]) .settings-footer,
+.app:not([data-theme="Default"]) .status-panel > nav,
+.app:not([data-theme="Default"]) .cue-type-sidebar,
+.app:not([data-theme="Default"]) .cue-list,
+.app:not([data-theme="Default"]) .side-list {
+  background: var(--panel-alt);
+}
+.app:not([data-theme="Default"]) .masthead,
+.app:not([data-theme="Default"]) .inspector,
+.app:not([data-theme="Default"]) .settings-panel,
+.app:not([data-theme="Default"]) .help-panel,
+.app:not([data-theme="Default"]) .status-panel,
+.app:not([data-theme="Default"]) .recorder-panel,
+.app:not([data-theme="Default"]) .small-panel,
+.app:not([data-theme="Default"]) .selector-panel,
+.app:not([data-theme="Default"]) .operations-panel {
+  background: var(--panel);
+}
+.app:not([data-theme="Default"]) .toolbox,
+.app:not([data-theme="Default"]) .sidebar,
+.app:not([data-theme="Default"]) .settings-tabs,
+.app:not([data-theme="Default"]) .settings-tabs span.active,
+.app:not([data-theme="Default"]) .inspector-tabs > button.active,
+.app:not([data-theme="Default"]) .patch-table > div:first-child,
+.app:not([data-theme="Default"]) .rich-text > div:first-child {
+  background: color-mix(in srgb, var(--panel) 82%, var(--surface));
+}
+.app:not([data-theme="Default"]) .work-area {
+  background: color-mix(in srgb, var(--bg) 88%, var(--panel));
+}
+.app:not([data-theme="Default"]) .standby > div,
+.app:not([data-theme="Default"]) .side-tabs button.active,
+.app:not([data-theme="Default"]) .cue-head,
+.app:not([data-theme="Default"]) .mode-switch,
+.app:not([data-theme="Default"]) .timeline-track,
+.app:not([data-theme="Default"]) .channel-controls,
+.app:not([data-theme="Default"]) .patch-table {
+  background: var(--surface);
+}
+.app:not([data-theme="Default"]) .rows {
+  background: repeating-linear-gradient(
+    var(--panel-alt) 0 27px,
+    var(--panel) 27px 54px
+  );
+}
+.app:not([data-theme="Default"]).cue-size-small .rows {
+  background: repeating-linear-gradient(
+    var(--panel-alt) 0 23px,
+    var(--panel) 23px 46px
+  );
+}
+.app:not([data-theme="Default"]).cue-size-large .rows {
+  background: repeating-linear-gradient(
+    var(--panel-alt) 0 36px,
+    var(--panel) 36px 72px
+  );
+}
+.app:not([data-theme="Default"]) .side-list {
+  background: repeating-linear-gradient(
+    var(--panel-alt) 0 25px,
+    var(--panel) 25px 50px
+  );
+}
+.app:not([data-theme="Default"]) .media-strip {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--panel-alt) 0 49px,
+    var(--surface) 50px
+  );
+}
+.app:not([data-theme="Default"]) .dropdown,
+.app:not([data-theme="Default"]) .context-menu,
+.app:not([data-theme="Default"]) .cue-section-menu {
+  background: color-mix(in srgb, var(--panel-alt) 96%, transparent);
+}
+.app:not([data-theme="Default"])
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.app:not([data-theme="Default"]) select,
+.app:not([data-theme="Default"]) textarea,
+.app:not([data-theme="Default"]) [contenteditable] {
+  background: var(--input);
+  border-color: var(--line);
+  color: var(--text);
+}
+.app:not([data-theme="Default"]) .icon-button,
+.app:not([data-theme="Default"]) .starred-cue,
+.app:not([data-theme="Default"]) .toolbox-section,
+.app:not([data-theme="Default"]) .side-actions button,
+.app:not([data-theme="Default"]) .settings-footer button,
+.app:not([data-theme="Default"]) .patch-head button,
+.app:not([data-theme="Default"]) .patch-table button,
+.app:not([data-theme="Default"]) .device-row button,
+.app:not([data-theme="Default"]) .setting button,
+.app:not([data-theme="Default"]) .status-action,
+.app:not([data-theme="Default"]) .status-panel > footer button,
+.app:not([data-theme="Default"]) .recorder-panel button,
+.app:not([data-theme="Default"]) .small-panel button,
+.app:not([data-theme="Default"]) .operations-panel button,
+.app:not([data-theme="Default"]) .find-bar button,
+.app:not([data-theme="Default"]) .audio-controls button,
+.app:not([data-theme="Default"]) .slice-list button,
+.app:not([data-theme="Default"]) .trim-times button,
+.app:not([data-theme="Default"]) .mode-options > button,
+.app:not([data-theme="Default"]) .effects-editor button,
+.app:not([data-theme="Default"]) .light-editor > button,
+.app:not([data-theme="Default"]) .trim-grid button,
+.app:not([data-theme="Default"]) .rich-text button,
+.app:not([data-theme="Default"]) .active-cue > button {
+  background: var(--surface);
+  color: var(--text);
+}
+.app:not([data-theme="Default"]) .icon-button:hover:not(:disabled),
+.app:not([data-theme="Default"]) .icon-button.active,
+.app:not([data-theme="Default"]) .starred-cue:hover,
+.app:not([data-theme="Default"]) .starred-cue.open,
+.app:not([data-theme="Default"]) .toolbox-section:hover,
+.app:not([data-theme="Default"]) .toolbox-section.open,
+.app:not([data-theme="Default"]) .device-row button:hover,
+.app:not([data-theme="Default"]) .setting button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--surface) 82%, var(--text));
+}
+.app:not([data-theme="Default"]) .menu-wrap > button:hover,
+.app:not([data-theme="Default"]) .menu-wrap > button.open,
+.app:not([data-theme="Default"]) .dropdown button:hover:not(:disabled),
+.app:not([data-theme="Default"]) .context-menu button:hover:not(:disabled),
+.app:not([data-theme="Default"]) .cue-action:hover,
+.app:not([data-theme="Default"]) .cue-action:focus-within,
+.app:not([data-theme="Default"]) .starred-overflow-item:hover,
+.app:not([data-theme="Default"]) .selector-panel section button:hover,
+.app:not([data-theme="Default"]) .settings-panel > aside button.active,
+.app:not([data-theme="Default"]) .template-settings > div button:first-child,
+.app:not([data-theme="Default"]) .template-settings > div button.selected,
+.app:not([data-theme="Default"]) .day-picker button.active,
+.app:not([data-theme="Default"]) .channel-controls button.active {
+  background: var(--accent);
+  color: white;
+}
+.app:not([data-theme="Default"]) .go {
+  background: var(--accent);
+  color: white;
+}
+.app:not([data-theme="Default"]) .go:hover {
+  background: color-mix(in srgb, var(--accent) 82%, white);
+}
+.app:not([data-theme="Default"]) .settings-content > p,
+.app:not([data-theme="Default"]) .help-panel p,
+.app:not([data-theme="Default"]) .workspace-title,
+.app:not([data-theme="Default"]) .standby-name,
+.app:not([data-theme="Default"]) .standby-notes,
+.app:not([data-theme="Default"]) .cue-row .target,
+.app:not([data-theme="Default"]) .device-row span,
+.app:not([data-theme="Default"]) .active-cue small,
+.app:not([data-theme="Default"]) .status-row small,
+.app:not([data-theme="Default"]) .status-empty,
+.app:not([data-theme="Default"]) .empty-inspector,
+.app:not([data-theme="Default"]) .settings-tabs span,
+.app:not([data-theme="Default"]) .cue-head,
+.app:not([data-theme="Default"]) .inspector-grid label,
+.app:not([data-theme="Default"]) .panel-form label,
+.app:not([data-theme="Default"]) kbd {
+  color: var(--muted);
+}
+.app:not([data-theme="Default"]) .brand,
+.app:not([data-theme="Default"]) .cue-row,
+.app:not([data-theme="Default"]) .settings-tabs span.active,
+.app:not([data-theme="Default"]) .side-tabs button.active,
+.app:not([data-theme="Default"]) .inspector-tabs > button.active,
+.app:not([data-theme="Default"]) .mode-switch button,
+.app:not([data-theme="Default"]) .cart-grid > button.filled {
+  color: var(--text);
+}
+.app:not([data-theme="Default"]) .menu-bar,
+.app:not([data-theme="Default"]) .masthead,
+.app:not([data-theme="Default"]) .toolbox,
+.app:not([data-theme="Default"]) .sidebar,
+.app:not([data-theme="Default"]) .inspector,
+.app:not([data-theme="Default"]) footer,
+.app:not([data-theme="Default"]) .settings-panel,
+.app:not([data-theme="Default"]) .settings-panel *,
+.app:not([data-theme="Default"]) .help-panel,
+.app:not([data-theme="Default"]) .status-panel,
+.app:not([data-theme="Default"]) .recorder-panel,
+.app:not([data-theme="Default"]) .small-panel,
+.app:not([data-theme="Default"]) .selector-panel,
+.app:not([data-theme="Default"]) .operations-panel,
+.app:not([data-theme="Default"]) .cue-head,
+.app:not([data-theme="Default"]) .cue-row,
+.app:not([data-theme="Default"]) .cue-type-sidebar,
+.app:not([data-theme="Default"]) .side-actions,
+.app:not([data-theme="Default"]) .channel-controls,
+.app:not([data-theme="Default"]) .patch-table,
+.app:not([data-theme="Default"]) .fixture-manager > div,
+.app:not([data-theme="Default"]) .rich-text {
+  border-color: var(--line);
 }
 
 @media (max-width: 850px) {
