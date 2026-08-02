@@ -52,7 +52,7 @@ kbd { color:#85858d; font:11px inherit; }
 .standby>div { padding:8px 10px; border:1px solid #4e4e4e; border-radius:3px; background:#3a3a3a; }
 .standby-name { color:#aaa; font-size:16px; font-weight:600; }
 .standby-notes { color:#aaa; }
-.transport { display:flex; align-items:center; gap:5px; }
+.transport { display:grid; grid-template-columns:repeat(2,31px); align-content:center; gap:5px; }
 .find-bar { width:100%; min-height:31px; display:flex; align-items:center; gap:7px; padding:3px 6px; border-top:1px solid #484848; }
 .find-bar input { flex:1; height:25px; padding:3px 7px; border:1px solid #555; border-radius:4px; background:#1e1e1e; }
 .find-bar span { min-width:90px; color:#aaa; }
