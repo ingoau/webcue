@@ -132,6 +132,28 @@ test("cue editing and output controls are wired", async () => {
     expect(runtime).toContain(behavior);
 });
 
+test("help menu includes in-app operating documentation", async () => {
+  const [page, css] = await Promise.all([
+    appFile("page.tsx"),
+    appFile("globals.css"),
+  ]);
+
+  for (const topic of [
+    "Getting started",
+    "Workspace layout",
+    "Cue reference",
+    "Automation",
+    "Run a show",
+    "Files and media",
+    "Troubleshooting",
+  ])
+    expect(page).toContain(topic);
+  expect(page).toContain("12=volume:40");
+  expect(css).toContain(".help-content");
+  expect(css).toContain(".help-guide-nav");
+  expect(css).toContain(".help-table");
+});
+
 test("cue failures, visual fades, selection, and arm controls remain wired", async () => {
   const page = await appFile("page.tsx");
   for (const behavior of [

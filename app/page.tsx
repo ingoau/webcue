@@ -570,6 +570,15 @@ const menuData = {
     "About WebCue",
   ],
 };
+const helpTopics = [
+  ["help-start", "Getting started", CirclePlay],
+  ["help-workspace", "Workspace", PanelLeft],
+  ["help-cues", "Cue reference", List],
+  ["help-automation", "Automation", Zap],
+  ["help-show", "Running a show", MonitorPlay],
+  ["help-files", "Files and media", FolderOpen],
+  ["help-trouble", "Troubleshooting", AlertTriangle],
+];
 
 function IconButton({ icon: Icon, label, active, onClick, disabled = false }) {
   return (
@@ -8496,72 +8505,626 @@ function Setting({ label, children }) {
   );
 }
 function HelpPanel({ kind, message, settings, close }) {
+  const [topic, setTopic] = useState("help-start");
   const body = message ? (
     <p>{message}</p>
   ) : kind === "Browser limitations" ? (
     <>
-      <p>
-        WebCue uses getUserMedia for microphone and camera cues, Web MIDI for
-        MIDI cues, MIDI timecode, and Standard MIDI Files, Web Serial for
-        lighting or DMX bridges, fetch and WebSocket for Network cues,
-        BroadcastChannel for same-origin collaboration, the File System Access
-        API for workspaces, IndexedDB for media, Wake Lock for Show mode, and
-        popup windows for stage output.
+      <p className="help-lead">
+        WebCue is designed for current desktop Chromium browsers. Browser
+        permissions and operating-system support determine which devices it can
+        reach.
       </p>
-      <p>
-        Chromium still cannot directly provide raw UDP, raw TCP, Art-Net, native
-        Core Audio routing, AppleScript, desktop blackout, or remote
-        collaboration without a bridge or server. Those controls are not
-        exposed.
-      </p>
+      <section>
+        <h3>Available browser integrations</h3>
+        <dl className="help-definitions">
+          <div>
+            <dt>Audio, camera, and microphone</dt>
+            <dd>
+              Web Audio and media-device APIs provide playback, routing, live
+              inputs, and screen capture. The browser asks before granting
+              camera or microphone access.
+            </dd>
+          </div>
+          <div>
+            <dt>MIDI and lighting</dt>
+            <dd>
+              Web MIDI handles MIDI, MIDI Show Control, and timecode. Web Serial
+              can send lighting data to a compatible USB or serial bridge.
+            </dd>
+          </div>
+          <div>
+            <dt>Files and media</dt>
+            <dd>
+              The File System Access API opens and saves workspace JSON. Media
+              is cached in IndexedDB and embedded when the workspace is saved.
+            </dd>
+          </div>
+          <div>
+            <dt>Displays and collaboration</dt>
+            <dd>
+              Popup windows provide stage output, Wake Lock keeps Show mode
+              awake, and BroadcastChannel or WebSocket carries collaboration
+              updates.
+            </dd>
+          </div>
+        </dl>
+      </section>
+      <section>
+        <h3>Not available directly</h3>
+        <p>
+          A web page cannot directly provide raw UDP or TCP, Art-Net, OSC,
+          native Core Audio patching, Audio Units, AppleScript, arbitrary local
+          processes, or operating-system-wide desktop blackout. Those jobs need
+          a separate bridge or native application.
+        </p>
+      </section>
+      <aside className="help-callout">
+        <strong>If hardware does not appear</strong>
+        <span>
+          Use desktop Chromium over HTTPS, grant the requested site permission,
+          connect the device before opening Workspace Settings, and refresh the
+          device list. Allow popups for stage output.
+        </span>
+      </aside>
     </>
   ) : kind === "Keyboard Shortcuts" ? (
     <>
-      <p>GO: {settings.goKey}</p>
-      <p>Panic all: {settings.panicKey}</p>
-      <p>Pause all: {settings.pauseKey}</p>
-      <p>Resume all: {settings.resumeKey}</p>
-      <p>Preview selected: {settings.previewKey}</p>
-      <p>Stop selected: {settings.stopSelectedKey}</p>
-      <p>Pause or resume selected: {settings.pauseSelectedKey}</p>
-      <p>Up and Down: select cue</p>
-      <p>Delete or Backspace: delete selected cues</p>
-      <p>Cmd or Ctrl + C, X, V, A: copy, cut, paste, select all</p>
-      <p>Cmd or Ctrl + F: find cues</p>
-      <p>Cmd or Ctrl + K: toolbox</p>
-      <p>Cmd or Ctrl + 0 through 9: create common cues</p>
-      <p>Cmd or Ctrl + S: save workspace</p>
+      <p className="help-lead">
+        Show-control keys use the current workspace settings. Editing shortcuts
+        are disabled while you type in a field or use a dialog.
+      </p>
+      <section>
+        <h3>Playback</h3>
+        <div className="shortcut-list">
+          {[
+            [settings.goKey, "GO"],
+            [settings.panicKey, "Panic all; press twice quickly to hard stop"],
+            [settings.pauseKey, "Pause all active cues"],
+            [settings.resumeKey, "Resume all paused cues"],
+            [settings.previewKey, "Preview the selected cue"],
+            [settings.stopSelectedKey, "Stop the selected cue"],
+            [settings.pauseSelectedKey, "Pause or resume the selected cue"],
+          ].map(([key, action]) => (
+            <div key={action}>
+              <kbd>{key}</kbd>
+              <span>{action}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section>
+        <h3>Editing and navigation</h3>
+        <div className="shortcut-list">
+          {[
+            ["Up / Down", "Select the previous or next visible cue"],
+            ["Shift + Up / Down", "Extend the cue selection"],
+            ["Delete / Backspace", "Delete selected cues in Edit mode"],
+            ["Cmd/Ctrl + Z", "Undo; add Shift to redo"],
+            ["Cmd/Ctrl + C / X / V", "Copy, cut, or paste cues"],
+            ["Cmd/Ctrl + A", "Select all cues in the current list"],
+            ["Cmd/Ctrl + F", "Find cues"],
+            ["Cmd/Ctrl + K", "Show or hide the cue toolbox"],
+            ["Cmd/Ctrl + S", "Save the workspace"],
+          ].map(([key, action]) => (
+            <div key={action}>
+              <kbd>{key}</kbd>
+              <span>{action}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section>
+        <h3>Create cues</h3>
+        <div className="shortcut-list shortcut-grid">
+          {[
+            ["0", "Group"],
+            ["1", "Audio"],
+            ["2", "Mic"],
+            ["3", "Video"],
+            ["4", "Camera"],
+            ["5", "Text"],
+            ["6", "Light"],
+            ["7", "Fade"],
+            ["8", "Network"],
+            ["9", "MIDI"],
+          ].map(([key, action]) => (
+            <div key={key}>
+              <kbd>Cmd/Ctrl + {key}</kbd>
+              <span>{action}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+      <aside className="help-callout">
+        Cue-specific hotkeys are configured in the selected cue&apos;s Triggers
+        tab. Global keys can be changed in Workspace Settings → Controls.
+      </aside>
     </>
   ) : kind === "About WebCue" ? (
     <>
-      <p>WebCue is a browser-native cue sequencer for Chromium.</p>
-      <p>
-        Workspace data stays in this browser unless you export or synchronize
-        it.
+      <p className="help-lead">
+        WebCue is a browser-native show-control workspace for Chromium.
       </p>
+      <p>
+        It combines cue lists, carts, media playback, live inputs, stage output,
+        lighting, MIDI, timecode, networking, and automation in a static web
+        application.
+      </p>
+      <aside className="help-callout">
+        Workspace data and cached media stay in this browser unless you save,
+        export, collect, or synchronize them. Treat exported workspace files as
+        sensitive if they contain private media or device configuration.
+      </aside>
     </>
   ) : (
     <>
-      <p>
-        WebCue is a Chromium show-control workspace. Create cues from the
-        toolbox, configure real devices in Workspace Settings, edit actions in
-        the inspector, and press GO.
-      </p>
+      <div className="help-guide">
+        <nav className="help-guide-nav" aria-label="Documentation chapters">
+          {helpTopics.map(([id, label, Icon]) => (
+            <button
+              className={topic === id ? "active" : ""}
+              aria-current={topic === id ? "page" : undefined}
+              onClick={() => setTopic(id)}
+              key={id}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="help-guide-page">
+          <p className="help-lead">
+            Build in Edit mode, verify with Preview and Warnings, then operate
+            the workspace from Show mode.
+          </p>
+          <section id="help-start" hidden={topic !== "help-start"}>
+            <h3>Start here</h3>
+            <ol className="help-steps">
+              <li>
+                <strong>Configure the workspace.</strong> Open File → Workspace
+                Settings to choose audio, video, MIDI, lighting, controls, and
+                stage patches. Grant browser permissions when prompted.
+              </li>
+              <li>
+                <strong>Open stage output.</strong> Choose Window → Open Stage
+                Output before testing Video, Camera, Text, or visual Timecode
+                cues. Allow popups if no output window appears.
+              </li>
+              <li>
+                <strong>Add and configure cues.</strong> Use the favorites bar,
+                toolbox, Cues menu, or creation shortcuts. Select a cue and use
+                its inspector tabs to set media, targets, timing, routing, and
+                triggers.
+              </li>
+              <li>
+                <strong>Rehearse safely.</strong> Preview selected cues, inspect
+                Workspace Status → Warnings, confirm outputs, and save a
+                workspace copy before switching to Show mode.
+              </li>
+            </ol>
+            <h4>Before the first rehearsal</h4>
+            <div className="help-status-grid">
+              {[
+                [
+                  "Outputs",
+                  "Audio/video patches point to the intended devices",
+                ],
+                [
+                  "Stage",
+                  "Every visual stage is open and on the correct display",
+                ],
+                ["Warnings", "Missing targets and media have been resolved"],
+                ["Backup", "A saved workspace copy opens successfully"],
+              ].map(([label, detail]) => (
+                <div key={label}>
+                  <span className="help-status">Required</span>
+                  <strong>{label}</strong>
+                  <small>{detail}</small>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section id="help-workspace" hidden={topic !== "help-workspace"}>
+            <h3>Workspace layout</h3>
+            <div className="help-cards">
+              <article>
+                <strong>Standby and GO</strong>
+                <span>
+                  The standby display shows the playhead cue. GO starts it and
+                  moves the playhead to the next sibling cue.
+                </span>
+              </article>
+              <article>
+                <strong>Lists and carts</strong>
+                <span>
+                  Lists run in order. Carts place cues in fixed launch slots and
+                  do not use automatic continuation.
+                </span>
+              </article>
+              <article>
+                <strong>Cue list</strong>
+                <span>
+                  Drag to reorder or nest cues, double-click names to rename,
+                  and use Shift or Cmd/Ctrl for multi-selection.
+                </span>
+              </article>
+              <article>
+                <strong>Inspector</strong>
+                <span>
+                  Basics controls identity and timing. Other tabs expose each
+                  cue&apos;s action, routing, levels, geometry, effects, or
+                  group mode.
+                </span>
+              </article>
+              <article>
+                <strong>Toolbox</strong>
+                <span>
+                  Favorite cue buttons stay on the main bar. Open a category for
+                  all types; right-click a type to add or remove it from
+                  favorites.
+                </span>
+              </article>
+              <article>
+                <strong>Active cues</strong>
+                <span>
+                  Running cues appear with their remaining time and controls.
+                  Pause, resume, reset, or panic cues without moving the
+                  playhead.
+                </span>
+              </article>
+            </div>
+            <h4>How a cue reaches an output</h4>
+            <div className="help-flow" aria-label="Cue output path">
+              <span>Media or live input</span>
+              <ChevronRight size={16} />
+              <span>Cue settings</span>
+              <ChevronRight size={16} />
+              <span>Workspace patch</span>
+              <ChevronRight size={16} />
+              <span>Stage or device</span>
+            </div>
+            <p>
+              If output fails, check this path from right to left: confirm the
+              stage or device exists, confirm the patch selects it, then inspect
+              the cue.
+            </p>
+          </section>
+          <section id="help-cues" hidden={topic !== "help-cues"}>
+            <h3>Cue reference</h3>
+            <table className="help-table">
+              <thead>
+                <tr>
+                  <th>Goal</th>
+                  <th>Use</th>
+                  <th>Configure first</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Play stored media</td>
+                  <td>Audio, Video, MIDI File</td>
+                  <td>Media file, patch, trim, duration</td>
+                </tr>
+                <tr>
+                  <td>Show live content</td>
+                  <td>Mic, Camera, Text</td>
+                  <td>Permission or text, then stage/routing</td>
+                </tr>
+                <tr>
+                  <td>Control another cue</td>
+                  <td>Start, Stop, Pause, Fade, Load</td>
+                  <td>Unique target cue number</td>
+                </tr>
+                <tr>
+                  <td>Control external equipment</td>
+                  <td>Light, MIDI, Network, Timecode</td>
+                  <td>Connected device, patch, or destination URL</td>
+                </tr>
+                <tr>
+                  <td>Organize a sequence</td>
+                  <td>Group, Wait, GoTo, Memo</td>
+                  <td>Child order, timing, or destination</td>
+                </tr>
+              </tbody>
+            </table>
+            <dl className="help-definitions cue-reference">
+              <div>
+                <dt>Audio · Mic</dt>
+                <dd>
+                  Play imported audio or a live input with channel routing,
+                  trims, levels, loops, slices, fades, and Web Audio effects.
+                </dd>
+              </div>
+              <div>
+                <dt>Video · Camera · Text</dt>
+                <dd>
+                  Place media, live capture, or formatted text on a stage.
+                  Geometry, crop, opacity, blend mode, z-index, and video
+                  effects control the result.
+                </dd>
+              </div>
+              <div>
+                <dt>Light · MIDI · MIDI File</dt>
+                <dd>
+                  Address patched fixtures, send MIDI or SysEx commands, or play
+                  a Standard MIDI File through the selected hardware patch.
+                </dd>
+              </div>
+              <div>
+                <dt>Network · Timecode</dt>
+                <dd>
+                  Send HTTP or WebSocket payloads, display or generate timecode,
+                  and drive cues from MIDI timecode or cue triggers.
+                </dd>
+              </div>
+              <div>
+                <dt>Fade · Devamp</dt>
+                <dd>
+                  Change selected parameters on a running target cue. Devamp
+                  also lets a looping target finish after the transition.
+                </dd>
+              </div>
+              <div>
+                <dt>Start · Stop · Pause · Load · Reset</dt>
+                <dd>
+                  Control another cue by number. Load prepares supported media
+                  without beginning normal playback.
+                </dd>
+              </div>
+              <div>
+                <dt>GoTo · Target · Arm · Disarm</dt>
+                <dd>
+                  GoTo moves the playhead. Target changes a cue property using
+                  cue-number=property:value. Arm and Disarm change whether
+                  another cue is eligible to run.
+                </dd>
+              </div>
+              <div>
+                <dt>Wait · Script</dt>
+                <dd>
+                  Add timed structure or run trusted JavaScript automation.
+                  Script cues execute in the page, so never paste code you do
+                  not trust.
+                </dd>
+              </div>
+              <div>
+                <dt>Group · Memo</dt>
+                <dd>
+                  Nest cues into a timeline, playlist, or alternate launch mode.
+                  Memo cues add non-running notes to the workspace.
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section id="help-automation" hidden={topic !== "help-automation"}>
+            <h3>Timing and triggers</h3>
+            <table className="help-table">
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Effect</th>
+                  <th>Best used for</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Pre-Wait</td>
+                  <td>Delays this cue before its action</td>
+                  <td>Offsets inside a group or sequence</td>
+                </tr>
+                <tr>
+                  <td>Post-Wait</td>
+                  <td>Delays the next Auto continue cue</td>
+                  <td>Spacing immediate control cues</td>
+                </tr>
+                <tr>
+                  <td>Auto continue</td>
+                  <td>Starts the next sibling from the timer</td>
+                  <td>Overlaps and parallel actions</td>
+                </tr>
+                <tr>
+                  <td>Auto follow</td>
+                  <td>Starts the next sibling after completion</td>
+                  <td>Back-to-back media</td>
+                </tr>
+              </tbody>
+            </table>
+            <h4>Trigger sources</h4>
+            <dl className="help-definitions">
+              <div>
+                <dt>Hotkey</dt>
+                <dd>
+                  Runs the cue from a key or modifier combination while focus is
+                  outside an editor or dialog.
+                </dd>
+              </div>
+              <div>
+                <dt>Wall clock</dt>
+                <dd>Runs at the configured time on selected days.</dd>
+              </div>
+              <div>
+                <dt>Timecode</dt>
+                <dd>
+                  Runs when incoming timecode reaches the configured value.
+                </dd>
+              </div>
+              <div>
+                <dt>MIDI</dt>
+                <dd>
+                  Matches the configured MIDI bytes; use <code>any</code>,
+                  <code>&gt;n</code>, or <code>&lt;n</code> for flexible
+                  matching.
+                </dd>
+              </div>
+            </dl>
+            <h4>Target and Script examples</h4>
+            <div className="help-example-grid">
+              <div>
+                <strong>Change cue 12 to 40% volume</strong>
+                <code>12=volume:40</code>
+              </div>
+              <div>
+                <strong>Start cue 12 from a Script cue</strong>
+                <code>api.go("12");</code>
+              </div>
+              <div>
+                <strong>Stop cue 12 from a Script cue</strong>
+                <code>api.stop("12");</code>
+              </div>
+              <div>
+                <strong>Put text on stage from a Script cue</strong>
+                <code>api.stage("Stand by");</code>
+              </div>
+            </div>
+            <aside className="help-callout">
+              Script cues execute trusted JavaScript in the page. Target cues
+              are safer for simple property changes and use the exact syntax
+              shown above.
+            </aside>
+          </section>
+          <section id="help-show" hidden={topic !== "help-show"}>
+            <h3>Run a show</h3>
+            <ul className="help-checklist">
+              <li>
+                Open every required stage and connect every hardware output.
+              </li>
+              <li>Resolve Warnings and confirm all required cues are armed.</li>
+              <li>
+                Preview media and verify routing before enabling Show mode.
+              </li>
+              <li>
+                Check that the blue playhead is on the intended standby cue
+                before pressing GO.
+              </li>
+              <li>
+                Use Pause/Resume for a recoverable hold. Panic fades active
+                cues; pressing the Panic key twice quickly stops them
+                immediately.
+              </li>
+            </ul>
+            <h4>Operator controls</h4>
+            <div className="help-cards">
+              <article>
+                <strong>Pause / Resume</strong>
+                <span>
+                  Hold active cues without clearing their current state.
+                </span>
+              </article>
+              <article>
+                <strong>Reset</strong>
+                <span>
+                  Stop active cues and return the playhead to the first cue.
+                </span>
+              </article>
+              <article>
+                <strong>Panic</strong>
+                <span>
+                  Fade active outputs over the configured panic duration.
+                </span>
+              </article>
+              <article>
+                <strong>Double Panic</strong>
+                <span>
+                  Press twice quickly to stop all active cues immediately.
+                </span>
+              </article>
+            </div>
+            <aside className="help-callout">
+              Audition mode can suppress selected output types during rehearsal.
+              Configure it in Workspace Settings → Audition rather than changing
+              production cue routing.
+            </aside>
+          </section>
+          <section id="help-files" hidden={topic !== "help-files"}>
+            <h3>Workspaces and media</h3>
+            <div className="help-flow" aria-label="Workspace file lifecycle">
+              <span>Import media</span>
+              <ChevronRight size={16} />
+              <span>Browser cache</span>
+              <ChevronRight size={16} />
+              <span>Save embeds media</span>
+              <ChevronRight size={16} />
+              <span>Portable JSON</span>
+            </div>
+            <p>
+              Save writes a portable JSON workspace. Imported media is cached in
+              the browser and embedded into the saved file, so media-heavy
+              workspaces can become large. Save As creates a new file;
+              subsequent Save operations update it when the browser grants file
+              access.
+            </p>
+            <p>
+              Collect Workspace Media copies cached media into a Media folder
+              you choose. Relink Missing Media matches selected replacement
+              files by filename. Keep the saved workspace and its original media
+              together as a backup, and test an exported copy before relying on
+              it at a venue.
+            </p>
+          </section>
+          <section id="help-trouble" hidden={topic !== "help-trouble"}>
+            <h3>Troubleshooting</h3>
+            <dl className="help-definitions">
+              <div>
+                <dt>A cue does not run</dt>
+                <dd>
+                  Check that it is armed, its target number exists, required
+                  media is present, and its device or stage patch is connected.
+                  Then open Workspace Status for the recorded error.
+                </dd>
+              </div>
+              <div>
+                <dt>No stage window</dt>
+                <dd>
+                  Allow popups for this site, open the stage again, then choose
+                  its display in Workspace Settings. Fullscreen must be
+                  requested from inside the stage window.
+                </dd>
+              </div>
+              <div>
+                <dt>No device or permission</dt>
+                <dd>
+                  Connect the device, confirm site permissions, use HTTPS or
+                  localhost, and reopen the relevant settings page. Some APIs
+                  are unavailable outside desktop Chromium.
+                </dd>
+              </div>
+              <div>
+                <dt>Missing media after import</dt>
+                <dd>
+                  Choose Tools → Relink Missing Media and select files with the
+                  same names. Save again after relinking.
+                </dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </div>
     </>
   );
   const dialog = useDialog(close, kind);
   return (
     <div className="modal-shade">
-      <div className="help-panel" {...dialog}>
-        <div>
-          <h2>{kind}</h2>
+      <article className="help-panel" {...dialog}>
+        <header className="help-header">
+          <div>
+            <span>WebCue documentation</span>
+            <h2>{kind}</h2>
+          </div>
           <button aria-label={`Close ${kind}`} onClick={close}>
             <X size={18} />
           </button>
+        </header>
+        <div
+          className={`help-content ${kind === "WebCue Help" ? "help-content-guide" : ""}`}
+        >
+          {body}
         </div>
-        {body}
-        <button onClick={close}>Done</button>
-      </div>
+        <footer className="help-footer">
+          <span>Help → Keyboard Shortcuts lists the current control keys.</span>
+          <button onClick={close}>Done</button>
+        </footer>
+      </article>
     </div>
   );
 }
