@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
+import { strToU8, zipSync } from "fflate";
 import { readFile } from "node:fs/promises";
-import { convertQLab } from "../app/qlab.mjs";
+import { convertQLab, importQLab } from "../app/qlab.mjs";
 
 test("converts QLab cue lists, nesting, targets, media, and warnings", () => {
   const audio = {
@@ -77,8 +78,114 @@ test("shows a persistent unsupported-feature warning after QLab import", async (
     "utf8",
   );
 
-  expect(page).toContain("setQLabReport(report)");
+  expect(page).toContain("setQlabReport(report)");
+  expect(page).toContain("Import QLab Project...");
   expect(page).toContain("QLab import needs review");
   expect(page).toContain("persistent warnings");
   expect(page).toContain("Workspace Status");
+});
+
+test("maps QLab continuation and trigger settings", () => {
+  const result = convertQLab(
+    { workspaceName: "Triggers.qlab5" },
+    {
+      cues: [
+        {
+          uniqueID: "list",
+          cues: [
+            {
+              $class: "MemoCue",
+              uniqueID: "cue",
+              continueMode: 2,
+              useHotKey: true,
+              hotKey: {
+                QLActionKeyCommand: true,
+                QLActionKeyKeyCharacter: 103,
+              },
+              useWallClock: true,
+              wallHours: 19,
+              wallMinutes: 30,
+              wallMonday: true,
+              useMIDITrigger: true,
+              midiTrigger: { status: 144, byte1: 60, byte2: 127 },
+            },
+          ],
+        },
+      ],
+    },
+  );
+  const cue = result.workspace.lists[0].cues[0];
+
+  expect(cue.continueMode).toBe("Auto follow");
+  expect(cue.hotkey).toBe("Cmd+G");
+  expect(cue.wallClock).toBe("19:30:00");
+  expect(cue.wallClockDays).toEqual([1]);
+  expect(cue.midiTrigger).toBe("144,60,127");
+});
+
+test("disarms unsafe and unknown QLab cue classes", () => {
+  const classes = [
+      "ScriptCue",
+      "OSCCue",
+      "NetworkCue",
+      "LightCue",
+      "TargetCue",
+      "FutureCue",
+    ],
+    result = convertQLab(
+      { workspaceName: "Unsafe.qlab5" },
+      {
+        cues: [
+          {
+            uniqueID: "list",
+            cues: classes.map(($class, index) => ({
+              $class,
+              uniqueID: String(index),
+            })),
+          },
+        ],
+      },
+    ),
+    cues = result.workspace.lists[0].cues;
+
+  expect(cues.every((cue) => !cue.armed)).toBe(true);
+  expect(cues.at(-1).type).toBe("Memo");
+  expect(result.report.cueWarnings).toBe(classes.length);
+});
+
+test("imports QLab carts sequentially with a warning", () => {
+  const result = convertQLab(
+    { workspaceName: "Cart.qlab5" },
+    {
+      cues: [
+        {
+          uniqueID: "cart",
+          cart: { columns: 4 },
+          cues: [
+            { $class: "GroupCue", uniqueID: "group", cues: [] },
+            { $class: "MemoCue", uniqueID: "memo", continueMode: 2 },
+          ],
+        },
+      ],
+    },
+  );
+  const list = result.workspace.lists[0];
+
+  expect(list.kind).toBe("cart");
+  expect(list.cues.map((cue) => cue.cartSlot)).toEqual([0, 1]);
+  expect(list.cues.every((cue) => cue.continueMode === "Do not continue")).toBe(
+    true,
+  );
+  expect(result.report.issues.join(" ")).toContain("grid positions");
+});
+
+test("rejects ZIP files without a QLab workspace", async () => {
+  const file = new File(
+    [zipSync({ "readme.txt": strToU8("not a project") })],
+    "project.zip",
+  );
+
+  await expect(importQLab(file)).rejects.toThrow(
+    "The ZIP does not contain a QLab 5 workspace.",
+  );
 });

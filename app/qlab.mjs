@@ -41,7 +41,7 @@ const colors = new Set([
   "magenta",
   "gray",
 ]);
-const continueModes = ["Do not continue", "Auto-continue", "Auto-follow"];
+const continueModes = ["Do not continue", "Auto continue", "Auto follow"];
 const groupModes = { 3: "Timeline" };
 const nil = (value) => value == null || value === "$null";
 const nameOf = (path = "") => path.split(/[\\/]/).filter(Boolean).at(-1) || "";

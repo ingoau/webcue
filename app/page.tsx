@@ -491,6 +491,7 @@ const menuData = {
   File: [
     "New Workspace",
     "Open Workspace...",
+    "Import QLab Project...",
     "Save",
     "Save As...",
     "Save As Template",
@@ -744,6 +745,7 @@ export default function Home() {
     serial: "Not connected",
   });
   const fileRef = useRef(null),
+    qlabRef = useRef(null),
     mediaRef = useRef(null),
     searchRef = useRef(null),
     starredAreaRef = useRef(null),
@@ -3175,6 +3177,7 @@ export default function Home() {
       value.lists.find((item) => item.id === value.currentList)?.cues[0]?.id ||
       "";
     workspaceHandle.current = handle;
+    setRuntimeWarnings({});
     setWorkspace({
       ...value,
       name: qlab ? value.name : file.name.replace(/\.json$/i, ""),
@@ -3183,7 +3186,7 @@ export default function Home() {
     setSelectedIds(first ? [first] : []);
     setPlayhead(first);
     if (report) {
-      setQLabReport(report);
+      setQlabReport(report);
       setNotice(
         `Imported ${report.cues} QLab cues. Review the conversion warnings.`,
       );
@@ -3667,6 +3670,7 @@ export default function Home() {
       setPlayhead("");
     }
     if (item === "Open Workspace...") openWorkspace();
+    if (item === "Import QLab Project...") qlabRef.current?.click();
     if (item === "Save") saveWorkspace();
     if (item === "Save As...") saveWorkspace(false, true);
     if (item === "Save As Template") saveWorkspace(true);
@@ -3918,6 +3922,13 @@ export default function Home() {
         hidden
         type="file"
         accept="application/json,.qlab5,.zip"
+        onChange={importWorkspace}
+      />
+      <input
+        ref={qlabRef}
+        hidden
+        type="file"
+        accept=".qlab5,.zip"
         onChange={importWorkspace}
       />
       <input
@@ -7241,8 +7252,10 @@ function QLabImportWarning({ report, close }) {
           <div>
             <h2>QLab import needs review</h2>
             <p>
-              Imported {report.cues} cues from {report.lists} lists using QLab{" "}
-              {report.version} data. {report.media} media files were linked.
+              Imported {report.cues} cues from {report.lists}{" "}
+              {report.lists === 1 ? "list" : "lists"} using QLab {report.version}{" "}
+              data. {report.media} media {report.media === 1 ? "file was" : "files were"}{" "}
+              linked.
             </p>
           </div>
         </div>
