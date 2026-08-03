@@ -3987,7 +3987,7 @@ export default function Home() {
       {visible.masthead && !(mode === "show" && list.kind === "cart") && (
         <section className="masthead">
           <button
-            className={`go ${active.length ? "running" : ""} ${goProtection}`}
+            className={`go ${settings.audition ? "audition" : ""} ${active.length ? "running" : ""} ${goProtection}`}
             onClick={go}
           >
             {list.kind === "cart"

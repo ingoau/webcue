@@ -196,6 +196,17 @@ test("appearance themes expose valid variants", async () => {
   expect(page).toContain('themeVariant: "Current"');
 });
 
+test("audition and template selection styles follow state", async () => {
+  const [page, css] = await Promise.all([
+    appFile("page.tsx"),
+    appFile("globals.css"),
+  ]);
+
+  expect(page).toContain('settings.audition ? "audition" : ""');
+  expect(css).toContain(".go.audition");
+  expect(css).not.toContain(".template-settings > div button:first-child");
+});
+
 test("nested groups own, hide, and sequence their children", () => {
   const cues = [
     {
