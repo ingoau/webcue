@@ -254,6 +254,9 @@ kbd {
   font-size: 43px;
   font-weight: 300;
 }
+.go.audition {
+  font-size: 30px;
+}
 .go:hover {
   background: #a19aac;
 }
@@ -1600,9 +1603,6 @@ footer > span {
   background: none;
   text-align: left;
 }
-.template-settings > div button:first-child {
-  background: #0868d8;
-}
 .template-settings > div button.selected {
   background: #0868d8;
 }
@@ -2157,7 +2157,6 @@ footer > span {
 .app:not([data-theme="Default"]) .starred-overflow-item:hover,
 .app:not([data-theme="Default"]) .selector-panel section button:hover,
 .app:not([data-theme="Default"]) .settings-panel > aside button.active,
-.app:not([data-theme="Default"]) .template-settings > div button:first-child,
 .app:not([data-theme="Default"]) .template-settings > div button.selected,
 .app:not([data-theme="Default"]) .day-picker button.active,
 .app:not([data-theme="Default"]) .channel-controls button.active {
