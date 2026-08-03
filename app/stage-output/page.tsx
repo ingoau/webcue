@@ -10,22 +10,9 @@ export default function StageOutput() {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await document.documentElement.requestFullscreen();
   };
-  const connected =
-    typeof window !== "undefined" &&
-    Boolean(window.opener && !window.opener.closed);
   return (
     <main className="stage-output">
       <div id="stage-layers" />
-      <div className="stage-output-idle" role="status">
-        <strong>
-          {connected ? "Stage output connected" : "Stage output idle"}
-        </strong>
-        <span>
-          {connected
-            ? "Waiting for a visual cue"
-            : "Open from WebCue to connect"}
-        </span>
-      </div>
       <button
         title="Full Screen"
         aria-label="Full Screen"

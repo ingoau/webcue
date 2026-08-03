@@ -23,31 +23,6 @@
   position: absolute;
   inset: 0;
 }
-.stage-output-idle {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  z-index: 2147483646;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px solid #444;
-  border-radius: 6px;
-  background: #181818d9;
-  color: #aaa;
-  opacity: 1;
-  transform: translateX(-50%);
-  transition: opacity 0.2s;
-}
-.stage-output-idle strong {
-  color: #ddd;
-  font-weight: 600;
-}
-.stage-output #stage-layers:not(:empty) ~ .stage-output-idle {
-  opacity: 0;
-  pointer-events: none;
-}
 .stage-output > button {
   position: fixed;
   top: 14px;
@@ -63,13 +38,15 @@
   border-radius: 5px;
   background: #242424d9;
   color: #fff;
-  opacity: 0.65;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s;
   cursor: pointer;
 }
-.stage-output > button:hover,
+.stage-output:hover > button,
 .stage-output > button:focus-visible {
   opacity: 1;
+  pointer-events: auto;
 }
 .stage-output #stage-layers:not(:empty) ~ button span {
   display: none;
