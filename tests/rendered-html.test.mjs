@@ -21,6 +21,7 @@ import {
   setPath,
   timelineLength,
 } from "../app/features.mjs";
+import { themes } from "../app/themes.mjs";
 
 const appFile = (name) =>
   readFile(new URL(`../app/${name}`, import.meta.url), "utf8");
@@ -166,6 +167,33 @@ test("stage output and PWA surfaces are complete", async () => {
     "192x192",
     "512x512",
   ]);
+});
+
+test("appearance themes expose valid variants", async () => {
+  const page = await appFile("page.tsx");
+
+  expect(Object.keys(themes)).toEqual([
+    "Default",
+    "Catppuccin",
+    "Tokyo Night",
+    "Dracula",
+    "One Dark",
+    "Nord",
+    "Gruvbox",
+    "Rosé Pine",
+    "Everforest",
+    "Kanagawa",
+    "Solarized",
+    "Monokai",
+    "Ayu",
+    "GitHub",
+  ]);
+  for (const variants of Object.values(themes))
+    for (const palette of Object.values(variants))
+      for (const property of ["--scheme", "--bg", "--text", "--accent"])
+        expect(palette[property]).toBeTruthy();
+  expect(page).toContain('theme: "Default"');
+  expect(page).toContain('themeVariant: "Current"');
 });
 
 test("nested groups own, hide, and sequence their children", () => {

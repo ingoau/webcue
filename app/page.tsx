@@ -88,6 +88,7 @@ import {
   visualFilter,
 } from "./features.mjs";
 import { importQLab } from "./qlab.mjs";
+import { themes } from "./themes.mjs";
 
 const cueTypes = [
   ["Group", Group],
@@ -339,6 +340,8 @@ const initial = {
   ],
   currentList: "main",
   settings: {
+    theme: "Default",
+    themeVariant: "Current",
     goKey: "Space",
     panicKey: "Escape",
     pauseKey: "[",
@@ -828,6 +831,8 @@ export default function Home() {
   const shownCues = visibleCues(list.cues);
   const playIndex = shownCues.findIndex((item) => item.id === playhead);
   const settings = workspace.settings || initial.settings;
+  const theme = themes[settings.theme] || themes.Default;
+  const palette = theme[settings.themeVariant] || Object.values(theme)[0];
   const availableCueTypes = cueTypes.filter(
     ([name]) => list.kind !== "cart" || name !== "Group",
   );
@@ -3904,10 +3909,13 @@ export default function Home() {
   return (
     <main
       style={{
+        ...palette,
         "--inspector-height": inspectorHeight
           ? `${inspectorHeight}px`
           : undefined,
       }}
+      data-theme={settings.theme}
+      data-theme-variant={settings.themeVariant}
       className={`app ${mode === "show" ? "show-mode" : ""} ${mode === "edit" && !visible.inspector ? "inspector-hidden" : ""} ${typeof location !== "undefined" && location.hash.startsWith("#inspector=") ? "inspector-window" : ""} cue-size-${settings.cueSize.toLowerCase()} cart-size-${settings.cartSize.toLowerCase()}`}
       onClick={() => {
         setContext(null);
@@ -7466,6 +7474,7 @@ function SettingsPanel({
 }) {
   const pages = [
     "General",
+    "Appearance",
     "Controls",
     "Audition",
     "Collaboration",
@@ -7641,6 +7650,41 @@ function SettingsPanel({
                       patch({ increment: Number(event.target.value) })
                     }
                   />
+                </Setting>
+              </>
+            )}
+            {page === "Appearance" && (
+              <>
+                <p>Choose the color theme used by this workspace.</p>
+                <Setting label="Theme">
+                  <select
+                    value={settings.theme}
+                    onChange={(event) => {
+                      const theme = event.target.value;
+                      patch({
+                        theme,
+                        themeVariant: Object.keys(themes[theme])[0],
+                      });
+                    }}
+                  >
+                    {Object.keys(themes).map((theme) => (
+                      <option key={theme}>{theme}</option>
+                    ))}
+                  </select>
+                </Setting>
+                <Setting label="Variant">
+                  <select
+                    value={settings.themeVariant}
+                    onChange={(event) =>
+                      patch({ themeVariant: event.target.value })
+                    }
+                  >
+                    {Object.keys(themes[settings.theme] || themes.Default).map(
+                      (variant) => (
+                        <option key={variant}>{variant}</option>
+                      ),
+                    )}
+                  </select>
                 </Setting>
               </>
             )}
