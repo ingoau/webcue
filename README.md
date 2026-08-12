@@ -28,7 +28,10 @@ Use `bun run test` for the production build and behavioral checks, `bun run lint
 - Multi-parameter fades, editable group timelines and looping/crossfading playlists; captured recurring triggers, ducking and related-cue actions
 - Fixture-based lighting, per-cue MIDI/timecode patches, SMPTE MIDI files and broad MIDI/MSC/system-message editing
 - Workspace warnings, operational windows, media collection/relinking, settings/templates, JSON import/export, IndexedDB media, same-origin and WebSocket collaboration, display placement and Wake Lock
+- Best-effort QLab 5 import from `.qlab5` files or zipped project folders, including nested cue lists and packaged media, with persistent warnings for unsupported translations
 
 ## Browser limits
 
 Chromium cannot expose native Core Audio patching or Audio Units, arbitrary local processes and AppleScript, desktop blackout, raw UDP/TCP such as Art-Net or OSC, or serverless remote-machine collaboration. WebCue omits those controls instead of presenting inactive UI. Hardware APIs request browser permission when used.
+
+QLab import is not lossless. Device patches, Audio Units, detailed routing/fade matrices, AppleScript, raw OSC/network cues, lighting patches, collaboration state, and display layout require manual review or replacement. Importing a raw `.qlab5` file preserves cue structure but not external media; zip the complete QLab project folder to carry its copied media.
